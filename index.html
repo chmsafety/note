@@ -1,0 +1,1108 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#2BC45F">
+<title>note</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+
+:root{
+  --ground:#EDF1EE; --surface:#FFFFFF; --surface-2:#F4F7F5; --surface-3:#E4EBE6;
+  --ink:#16201C; --ink-2:#47544F; --ink-3:#77857F; --line:#D8DFDC; --line-2:#C2CCC7;
+  --accent:#2BC45F; --accent-hover:#22B052; --accent-soft:#DDF7E5; --accent-ink:#157A38; --on-accent:#05290F;
+  --mark:#C98A12; --mark-soft:#FAEFD6; --mark-ink:#7A5206;
+  --ok:#1D7A4C; --ok-soft:#DDF1E6; --danger:#B42E22; --danger-soft:#F8E1DE;
+  --frame:#1B2320; --scrim:rgba(10,18,15,.44);
+  --shadow:0 1px 2px rgba(20,32,28,.06),0 10px 28px rgba(20,32,28,.10);
+  --sans:'IBM Plex Sans KR','Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0F1412; --surface:#171D1B; --surface-2:#1D2522; --surface-3:#26302C;
+    --ink:#E3EAE7; --ink-2:#A8B5B0; --ink-3:#76847E; --line:#2A3430; --line-2:#37433E;
+    --accent:#4ADE80; --accent-hover:#6EE79A; --accent-soft:#14331F; --accent-ink:#8CEBAE; --on-accent:#052E16;
+    --mark:#E5AE45; --mark-soft:#3A2D12; --mark-ink:#F2CD85;
+    --ok:#5CCB93; --ok-soft:#153A28; --danger:#F08A7E; --danger-soft:#3E1D19;
+    --frame:#000000; --scrim:rgba(0,0,0,.6);
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 28px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0F1412; --surface:#171D1B; --surface-2:#1D2522; --surface-3:#26302C;
+  --ink:#E3EAE7; --ink-2:#A8B5B0; --ink-3:#76847E; --line:#2A3430; --line-2:#37433E;
+  --accent:#4ADE80; --accent-hover:#6EE79A; --accent-soft:#14331F; --accent-ink:#8CEBAE; --on-accent:#052E16;
+  --mark:#E5AE45; --mark-soft:#3A2D12; --mark-ink:#F2CD85;
+  --ok:#5CCB93; --ok-soft:#153A28; --danger:#F08A7E; --danger-soft:#3E1D19;
+  --frame:#000000; --scrim:rgba(0,0,0,.6);
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 28px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font:14px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
+button,input,textarea,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent-ink);outline-offset:2px}
+code{font:12px var(--mono);background:var(--surface-3);padding:1px 5px;border-radius:4px}
+svg.i{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* ── 무대 ── */
+.app{position:relative;height:100vh;height:100dvh;background:var(--ground);overflow:hidden;container:app / inline-size}
+#view{height:100%}
+
+/* ── 셸 ── */
+.shell{display:grid;grid-template-columns:228px minmax(0,1fr);height:100%}
+.side{background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:18px 12px 14px;gap:2px;min-height:0}
+.brand{display:flex;align-items:center;gap:10px;padding:2px 8px 20px}
+.logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(150deg,#7BEA9C 0%,#34CF68 55%,#1FA84F 100%);color:#fff;display:grid;place-items:center;font:700 12px/1 var(--sans);letter-spacing:-.01em;text-shadow:0 1px 1px rgba(0,60,20,.35);flex:none}
+.brand b{font-size:16px;letter-spacing:-.01em}
+.brand small{display:block;font-size:11px;color:var(--ink-3);font-weight:400}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav button{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;color:var(--ink-2);background:none;border:0;cursor:pointer;font-weight:500;text-align:left;width:100%}
+.nav button:hover{background:var(--surface-2)}
+.nav button[aria-current="page"]{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+.side .me{margin-top:auto;display:flex;align-items:center;gap:10px;padding:10px 8px 0;border-top:1px solid var(--line)}
+.av{width:32px;height:32px;border-radius:50%;background:var(--surface-3);color:var(--ink-2);display:grid;place-items:center;font-weight:700;font-size:13px;flex:none}
+.side .me .who{min-width:0;flex:1}
+.side .me .who b{display:block;font-size:13px}
+.side .me .who span{font-size:11.5px;color:var(--ink-3);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.iconbtn{width:32px;height:32px;border-radius:8px;border:0;background:none;color:var(--ink-3);display:grid;place-items:center;cursor:pointer}
+.iconbtn:hover{background:var(--surface-2);color:var(--ink)}
+.main{overflow:auto;min-width:0;min-height:0;position:relative;scroll-behavior:smooth}
+.mtop{display:none}
+.tabbar{display:none}
+
+/* ── 페이지 ── */
+.page{padding:26px 32px 48px;max-width:1140px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+.ph{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 16px}
+.ph h1{margin:0;font-size:22px;line-height:1.3;font-weight:700;letter-spacing:-.015em;text-wrap:balance}
+.ph .sub{color:var(--ink-3);font-size:13px;margin-top:3px}
+.ph .acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.back{display:inline-flex;align-items:center;gap:2px;color:var(--ink-3);font-size:13px;cursor:pointer;background:none;border:0;padding:0;margin:0 0 6px -4px}
+.back svg.i{width:16px;height:16px}
+.back:hover{color:var(--ink)}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;padding:0 14px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);font-weight:500;cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--surface-2)}
+.btn svg.i{width:16px;height:16px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+.btn.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn.sm{height:30px;padding:0 10px;font-size:12.5px;border-radius:7px}
+.btn.quiet{border-color:transparent;background:transparent;color:var(--ink-2)}
+.btn.quiet:hover{background:var(--surface-3);color:var(--ink)}
+.btn.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 35%,var(--line-2))}
+.btn.danger.armed{background:var(--danger);color:#fff;border-color:var(--danger)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+
+.pill{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.draft{background:var(--mark-soft);color:var(--mark-ink)}
+.pill.sent{background:var(--ok-soft);color:var(--ok)}
+.pill.off{background:var(--surface-3);color:var(--ink-3)}
+.pill.none{background:var(--danger-soft);color:var(--danger)}
+.pill.role{background:var(--accent-soft);color:var(--accent-ink)}
+.pill.role::before,.pill.plain::before{display:none}
+.pill.plain{background:var(--surface-3);color:var(--ink-2)}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;min-width:0}
+.panel-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.panel-h h2{margin:0;font-size:14.5px;font-weight:700}
+.panel-h .hint{margin-left:auto}
+.panel-b{padding:16px 18px}
+.empty{padding:28px 18px;text-align:center;color:var(--ink-3);font-size:13px}
+
+.fgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px}
+.fgrid .full{grid-column:1/-1}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field>label,.lbl{font-size:12.5px;font-weight:600;color:var(--ink-2)}
+.req::after{content:" *";color:var(--danger)}
+.in{width:100%;height:40px;padding:0 12px;border:1px solid var(--line-2);border-radius:8px;background:var(--surface);min-width:0}
+textarea.in{height:auto;padding:10px 12px;resize:vertical;line-height:1.65}
+.in:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.in[readonly],.in:disabled{background:var(--surface-2);color:var(--ink-2)}
+.in.err{border-color:var(--danger);box-shadow:0 0 0 3px var(--danger-soft)}
+.hint{font-size:12px;color:var(--ink-3)}
+.warn{display:flex;gap:6px;align-items:flex-start;font-size:12.5px;color:var(--mark-ink);background:var(--mark-soft);padding:8px 10px;border-radius:8px}
+.warn svg.i{width:16px;height:16px;margin-top:2px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* ── 홈 ── */
+.hgrid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+.today{padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+.today .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.today .eyebrow{font:600 11px var(--mono);letter-spacing:.08em;color:var(--ink-3)}
+.today h2{margin:3px 0 0;font-size:18px;line-height:1.35;text-wrap:balance}
+.today .meta{display:flex;flex-wrap:wrap;gap:4px 14px;color:var(--ink-2);font-size:13px}
+.today .meta span{display:inline-flex;align-items:center;gap:5px}
+.today .meta svg.i{width:15px;height:15px;color:var(--ink-3)}
+.ruler{display:grid;grid-template-columns:repeat(14,1fr);gap:3px}
+.ruler i{height:26px;border-radius:4px;background:var(--surface-3);position:relative}
+.ruler i.on{background:var(--accent-soft);box-shadow:inset 0 -3px 0 var(--accent)}
+.ruler i.now{outline:2px solid var(--mark);outline-offset:1px}
+.ruler-l{display:grid;grid-template-columns:repeat(14,1fr);gap:3px;font:500 10.5px var(--mono);color:var(--ink-3);margin-top:4px}
+.nowline{display:flex;gap:10px;align-items:baseline;font-size:13px;padding:10px 12px;border-radius:8px;background:var(--surface-2)}
+.nowline .mono{font-size:12px;color:var(--mark-ink);font-weight:600;white-space:nowrap}
+.today .acts{display:flex;gap:8px;flex-wrap:wrap}
+.stack{display:flex;flex-direction:column;gap:18px;min-width:0}
+.mini{display:flex;flex-direction:column}
+.mini .it{display:flex;gap:12px;align-items:center;padding:11px 18px;border-top:1px solid var(--line);cursor:pointer;background:none;border-left:0;border-right:0;border-bottom:0;text-align:left;width:100%;color:inherit}
+.mini .it:first-child{border-top:0}
+.mini .it:hover{background:var(--surface-2)}
+.mini .it .tx{min-width:0;flex:1}
+.mini .it .tx b{display:block;font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini .it .tx span{font-size:12px;color:var(--ink-3)}
+.mini .it img{width:44px;height:33px;border-radius:5px;object-fit:cover;flex:none}
+.team .it{cursor:default}
+.team .it:hover{background:none}
+
+/* ── 목록 ── */
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.filters .sp{flex:1}
+select.in{height:34px;padding:0 30px 0 10px;width:auto;font-size:13px}
+.search{position:relative;flex:1 1 220px;max-width:340px}
+.search .in{height:36px;padding-left:34px}
+.search svg.i{position:absolute;left:10px;top:9px;width:17px;height:17px;color:var(--ink-3)}
+.rhead,.rrow{display:grid;grid-template-columns:132px minmax(0,1fr) 88px 100px 150px;grid-template-areas:"d main au st snd";gap:14px;align-items:center;padding:12px 18px}
+.rlist.noau .rhead,.rlist.noau .rrow{grid-template-columns:132px minmax(0,1fr) 100px 150px;grid-template-areas:"d main st snd"}
+.rlist.noau .au{display:none}
+.rhead{font-size:12px;color:var(--ink-3);font-weight:600;border-bottom:1px solid var(--line);padding-block:9px}
+.rrow{border:0;border-top:1px solid var(--line);cursor:pointer;background:none;text-align:left;width:100%;color:inherit}
+.rhead+.rrow{border-top:0}
+.rrow:hover{background:var(--surface-2)}
+.rrow .d{grid-area:d;font:500 13px var(--mono);font-variant-numeric:tabular-nums}
+.rrow .main-c,.rhead .main-c{grid-area:main;min-width:0}
+.rrow .pl{font-weight:600;display:block}
+.rrow .tk{color:var(--ink-2);font-size:13px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rrow .au,.rhead .au{grid-area:au;font-size:13px}
+.rrow .st,.rhead .st{grid-area:st}
+.rrow .snd,.rhead .snd{grid-area:snd;font-size:12px;color:var(--ink-3)}
+.rhead .d{grid-area:d}
+
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+.mcard{padding:16px 18px;display:flex;flex-direction:column;gap:9px;cursor:pointer;text-align:left;color:inherit;font:inherit}
+.mcard:hover{border-color:var(--accent)}
+.mcard .when{font:500 12px var(--mono);color:var(--ink-3);display:flex;justify-content:space-between;gap:8px}
+.mcard h3{margin:0;font-size:15.5px;line-height:1.4;text-wrap:balance}
+.mcard .pl{font-size:12.5px;color:var(--ink-2);display:flex;gap:5px;align-items:center}
+.mcard .pl svg.i{width:14px;height:14px;color:var(--ink-3)}
+.mcard .ex{font-size:13px;color:var(--ink-2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-line}
+.mcard .foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:2px}
+.thumbs{display:flex;gap:5px}
+.thumbs img{width:52px;height:39px;border-radius:5px;object-fit:cover}
+.thumbs .more{width:52px;height:39px;border-radius:5px;background:var(--surface-3);display:grid;place-items:center;font:600 12px var(--mono);color:var(--ink-2)}
+.people{display:flex;flex-wrap:wrap;gap:4px}
+.people span{font-size:11.5px;padding:2px 7px;border-radius:999px;background:var(--surface-3);color:var(--ink-2)}
+.todoc{font-size:12px;color:var(--ink-3);display:inline-flex;align-items:center;gap:4px}
+.todoc svg.i{width:14px;height:14px}
+
+/* ── 보고서 작성 ── */
+.editor{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;align-items:start}
+.pane-form{display:flex;flex-direction:column;gap:22px;min-width:0}
+.pane-prev{position:sticky;top:0;display:flex;flex-direction:column;gap:8px;min-width:0}
+.pane-prev .cap{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.eseg{display:none}
+.sec{display:flex;flex-direction:column;gap:12px}
+.sec-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.sec-h h3{margin:0;font-size:15px;font-weight:700}
+.sec-h .hint{font-family:var(--mono)}
+.slots{border:1px solid var(--line-2);border-radius:10px;overflow:hidden;background:var(--surface)}
+.slot{display:grid;grid-template-columns:118px minmax(0,1fr);border-top:1px solid var(--line)}
+.slot:first-child{border-top:0}
+.slot .t{font:500 12px/1 var(--mono);color:var(--ink-2);background:var(--surface-2);display:flex;align-items:center;gap:6px;padding:0 10px 0 12px;border-right:1px solid var(--line);font-variant-numeric:tabular-nums;white-space:nowrap}
+.slot input{border:0;background:transparent;height:38px;padding:0 12px;min-width:0;width:100%}
+.slot input:focus{outline:none;background:var(--accent-soft)}
+.slot input:disabled{color:var(--ink-2)}
+.slot.now .t{color:var(--accent-ink);background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--mark)}
+.slot.now .t::after{content:"지금";margin-left:auto;font:700 10.5px var(--sans);color:var(--mark-ink)}
+.saved{font-size:12px;color:var(--ink-3);display:inline-flex;align-items:center;gap:5px}
+.saved::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.saved.ing::before{background:var(--mark)}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:11px 14px;border-radius:10px;font-size:13px;background:var(--ok-soft);color:var(--ok)}
+.banner.dirty{background:var(--mark-soft);color:var(--mark-ink)}
+.banner.ro{background:var(--surface-3);color:var(--ink-2)}
+.banner svg.i{width:17px;height:17px;margin-top:1px}
+.banner b{font-weight:700}
+.sticky-act{display:none}
+.sends .it{display:grid;grid-template-columns:110px 22px minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 18px;border-top:1px solid var(--line);font-size:13px}
+.sends .it:first-child{border-top:0}
+.sends .it .mono{font-size:12px;color:var(--ink-3)}
+.sends .it svg.i{width:16px;height:16px;color:var(--ink-3)}
+.sends .it .ad{color:var(--ink-3);font-size:12px}
+
+/* A4 — 종이이므로 테마와 무관하게 흰 바탕 */
+.a4wrap{position:relative;width:100%;overflow:hidden}
+.a4{position:absolute;top:0;left:0;transform-origin:0 0;width:794px;height:1123px;background:#FFFFFF;color:#111111;padding:40pt 36pt;font-family:'뫼비우스','Mobius','IBM Plex Sans KR','Malgun Gothic',sans-serif;box-shadow:0 1px 3px rgba(0,0,0,.14),0 12px 30px rgba(0,0,0,.14);line-height:1.35}
+.a4 .ttl{height:33pt;display:flex;align-items:center;justify-content:center;font-size:26pt;line-height:1;text-decoration:underline;text-underline-offset:6pt;text-decoration-thickness:1pt}
+.a4 .gap{height:13.8pt}
+.a4 .sh{height:27.6pt;display:flex;align-items:flex-end;padding:0 0 4pt;font-size:11pt;font-weight:700}
+.a4 .sh.b{height:28.2pt}
+.a4 table{width:100%;border-collapse:collapse;table-layout:fixed}
+.a4 th,.a4 td{border:.75pt solid #000;padding:0 5pt;font-weight:400;overflow:hidden}
+.a4 th{background:#F2F2F2;text-align:center;font-size:10pt;color:#111}
+.a4 td{font-size:10.5pt;text-align:left}
+.a4 .r1 th,.a4 .r1 td{height:22.2pt}
+.a4 .r1 td{text-align:center}
+.a4 .r1 td.l{text-align:left}
+.a4 .rs th,.a4 .rs td{height:17.4pt}
+.a4 .rs th{font-size:9pt}
+.a4 .rs td .c{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a4 .rb th{height:222pt;font-size:11pt}
+.a4 .rb td,.a4 .re td{vertical-align:top;padding:6pt 7pt}
+.a4 .clip{overflow:hidden;white-space:pre-wrap;word-break:keep-all;overflow-wrap:anywhere;line-height:1.55}
+.a4 .rb .clip{height:209pt}
+.a4 .re th{height:78pt;white-space:pre-line;font-size:10pt;line-height:1.4}
+.a4 .re .clip{height:65pt;font-size:10pt}
+.a4 .clip.over{box-shadow:inset 0 -2pt 0 #C98A12}
+
+/* ── 메모 작성 ── */
+.medit{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:22px;align-items:start}
+.medit .col{display:flex;flex-direction:column;gap:18px;min-width:0}
+.ttl-in{font-size:20px;font-weight:700;height:48px;letter-spacing:-.01em}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:5px 6px;border:1px solid var(--line-2);border-radius:8px;min-height:40px;background:var(--surface);align-items:center}
+.chips:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.chip{display:inline-flex;align-items:center;gap:2px;padding:2px 4px 2px 10px;border-radius:999px;background:var(--surface-3);font-size:12.5px}
+.chip button{border:0;background:none;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;cursor:pointer;color:var(--ink-3);padding:0}
+.chip button svg.i{width:12px;height:12px}
+.chips input{border:0;outline:0;background:none;flex:1;min-width:110px;height:28px;padding:0 4px}
+.todos{display:flex;flex-direction:column;gap:6px}
+.todo{display:grid;grid-template-columns:22px minmax(0,1fr) minmax(0,1.2fr) 30px;grid-template-areas:"ck tx tx rm" ". ow du .";gap:6px;align-items:center;padding-bottom:10px;border-bottom:1px dashed var(--line)}
+.todo:last-child{border-bottom:0;padding-bottom:0}
+.todo .ck{grid-area:ck;width:18px;height:18px;accent-color:var(--accent)}
+.todo .tx{grid-area:tx}.todo .ow{grid-area:ow}.todo .du{grid-area:du}.todo .rm{grid-area:rm}
+.todo .in{height:34px;font-size:13px;padding:0 9px}
+.todo.done .tx{text-decoration:line-through;color:var(--ink-3)}
+.pgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.pit{display:flex;flex-direction:column;gap:5px;position:relative;min-width:0}
+.pit img{width:100%;max-width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:zoom-in;display:block;background:var(--surface-3)}
+.pit .in{height:32px;font-size:12.5px;padding:0 8px}
+.pit .rm{position:absolute;top:6px;right:6px;width:28px;height:28px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;display:grid;place-items:center;cursor:pointer}
+.pit .rm svg.i{width:14px;height:14px}
+.pit .kb{font:500 11px var(--mono);color:var(--ink-3)}
+.padd{display:flex;gap:8px;flex-wrap:wrap}
+.padd label{cursor:pointer}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ── 설정 ── */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.tabs button{border:0;background:none;padding:10px 12px;border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;color:var(--ink-2);font-weight:500;white-space:nowrap}
+.tabs button[aria-selected="true"]{color:var(--accent-ink);border-bottom-color:var(--accent);font-weight:700}
+.sgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
+.kv{display:grid;grid-template-columns:88px minmax(0,1fr);gap:10px 12px;font-size:13.5px}
+.kv dt{color:var(--ink-3)}
+.kv dd{margin:0}
+.arow,.ahead{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) 76px 104px 96px 110px 64px;grid-template-areas:"nm dp rl mf st ls ed";gap:12px;align-items:center;padding:11px 18px}
+.ahead{font-size:12px;color:var(--ink-3);font-weight:600;border-bottom:1px solid var(--line);padding-block:9px}
+.arow{border-top:1px solid var(--line);font-size:13px}
+.ahead+.arow{border-top:0}
+.arow .nm,.ahead .nm{grid-area:nm;min-width:0}
+.arow .nm b{display:block}
+.arow .nm span{font:12px var(--mono);color:var(--ink-3)}
+.arow .dp,.ahead .dp{grid-area:dp;color:var(--ink-2)}
+.arow .rl,.ahead .rl{grid-area:rl}.arow .mf,.ahead .mf{grid-area:mf}.arow .st,.ahead .st{grid-area:st}
+.arow .ls,.ahead .ls{grid-area:ls;font-size:12px;color:var(--ink-3)}
+.arow .ed,.ahead .ed{grid-area:ed;text-align:right}
+.arow.off .nm b{color:var(--ink-3)}
+.addrow{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1fr) minmax(0,1.3fr) auto;gap:8px;align-items:end}
+.rcrow{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1fr) minmax(0,1.3fr) 118px 88px;gap:12px;align-items:center;padding:11px 18px;border-top:1px solid var(--line);font-size:13px}
+.rcrow:first-child{border-top:0}
+.rcrow .ad{font-family:var(--mono);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rcrow .dp{color:var(--ink-2)}
+.tog{display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;color:var(--ink-2);border:0;background:none;padding:0}
+.tog i{width:32px;height:18px;border-radius:999px;background:var(--line-2);position:relative;transition:background .15s}
+.tog i::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform .15s}
+.tog[aria-checked="true"] i{background:var(--accent)}
+.tog[aria-checked="true"] i::after{transform:translateX(14px)}
+.tog:disabled{cursor:default;opacity:.7}
+.mfa{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+.mfa canvas{width:168px;height:168px;border-radius:8px;border:1px solid var(--line);image-rendering:pixelated;flex:none;max-width:100%}
+.mfa .steps{display:flex;flex-direction:column;gap:10px;flex:1;min-width:200px}
+.secret{font:600 14px var(--mono);letter-spacing:.08em;background:var(--surface-2);border:1px dashed var(--line-2);padding:8px 10px;border-radius:8px;overflow-wrap:anywhere}
+.radio{display:flex;flex-direction:column;gap:8px}
+.radio label{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer}
+.radio label:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.radio input{accent-color:var(--accent);margin-top:3px}
+.radio b{display:block;font-size:13.5px}
+.radio span{font-size:12px;color:var(--ink-3)}
+.status-line{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.status-line .ico{width:40px;height:40px;border-radius:10px;background:var(--ok-soft);color:var(--ok);display:grid;place-items:center}
+.status-line .ico.no{background:var(--mark-soft);color:var(--mark-ink)}
+
+/* ── 로그인 ── */
+.login{height:100%;display:grid;place-items:center;padding:24px 16px;overflow:auto;background:repeating-linear-gradient(0deg,transparent 0 27px,color-mix(in srgb,var(--line) 70%,transparent) 27px 28px),var(--ground)}
+.lcard{width:min(380px,100%);background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:28px 26px 24px;display:flex;flex-direction:column;gap:16px;box-shadow:var(--shadow)}
+.lcard .brand{padding:0 0 4px}
+.lcard .brand .logo{width:44px;height:44px;font-size:15px;border-radius:11px}
+.lcard .brand b{font-size:20px}
+.lcard h2{margin:0;font-size:17px}
+.lcard p{margin:0;font-size:13px;color:var(--ink-2)}
+.lcard .foot{font-size:12px;color:var(--ink-3);display:flex;align-items:flex-start;gap:6px}
+.lcard .foot svg.i{width:15px;height:15px;margin-top:2px}
+.otp{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.otp input{height:52px;text-align:center;font:600 22px var(--mono);border:1px solid var(--line-2);border-radius:10px;background:var(--surface);min-width:0;width:100%}
+.otp input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.errtx{font-size:12.5px;color:var(--danger);min-height:18px}
+
+/* ── 오버레이 ── */
+.overlay{position:absolute;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:24px;z-index:50}
+.dlg{background:var(--surface);border-radius:14px;width:min(580px,100%);max-height:100%;display:flex;flex-direction:column;box-shadow:var(--shadow);min-height:0}
+.dlg-h{padding:15px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px}
+.dlg-h h2{margin:0;font-size:16px}
+.dlg-b{padding:16px 20px 18px;overflow:auto;display:flex;flex-direction:column;gap:18px;min-height:0}
+.dlg-f{padding:12px 20px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap}
+.dlg-f .hint{margin-right:auto}
+.grp-h{display:flex;align-items:center;gap:8px;font-weight:700;font-size:13.5px}
+.grp-h svg.i{width:17px;height:17px;color:var(--accent-ink)}
+.grp-h .hint{font-weight:400;margin-left:auto}
+.rcpts{display:flex;flex-direction:column;gap:6px}
+.rcpt{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer;font-size:13px}
+.rcpt input{accent-color:var(--accent);width:16px;height:16px;flex:none}
+.rcpt:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.rcpt b{font-weight:600}
+.rcpt .ad{margin-left:auto;font:12px var(--mono);color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.file{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--surface-2);font:12.5px var(--mono);color:var(--ink-2)}
+.bytes{font:500 12px var(--mono);color:var(--ink-3);display:flex;justify-content:space-between;gap:8px}
+.prog{display:flex;flex-direction:column;gap:2px}
+.prog .st{display:grid;grid-template-columns:26px minmax(0,1fr);gap:8px;align-items:start;padding:9px 0;border-top:1px solid var(--line);font-size:13.5px;color:var(--ink-3)}
+.prog .st:first-child{border-top:0}
+.prog .st small{display:block;font:12px var(--mono);color:var(--ink-3);overflow-wrap:anywhere}
+.prog .st .dot{width:22px;height:22px;border-radius:50%;border:2px solid var(--line-2);display:grid;place-items:center}
+.prog .st.run{color:var(--ink)}
+.prog .st.run .dot{border-color:var(--accent);border-top-color:transparent;animation:spin .8s linear infinite}
+.prog .st.done{color:var(--ink)}
+.prog .st.done .dot{border-color:var(--ok);background:var(--ok);color:#fff}
+.prog .st.done .dot svg.i{width:13px;height:13px;stroke-width:2.6}
+@keyframes spin{to{transform:rotate(360deg)}}
+.doneb{display:flex;gap:12px;align-items:center;padding:14px;border-radius:10px;background:var(--ok-soft);color:var(--ok);font-weight:600}
+.imp{display:flex;flex-direction:column;gap:8px}
+.imp .it{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px}
+.imp .it .tx{flex:1;min-width:0}
+.imp .it .tx b{display:block;font-size:13.5px}
+.imp .it .tx span{font-size:12px;color:var(--ink-3)}
+.lb{position:absolute;inset:0;background:rgba(0,0,0,.88);z-index:55;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;color:#fff}
+.lb img{max-width:100%;max-height:calc(100% - 90px);border-radius:6px;object-fit:contain}
+.lb .bar{display:flex;gap:10px;align-items:center;font-size:13px}
+.lb .bar button{background:rgba(255,255,255,.14);border:0;color:#fff;height:34px;min-width:34px;border-radius:8px;cursor:pointer;display:grid;place-items:center;padding:0 10px}
+.lb .x{position:absolute;top:14px;right:14px}
+.toast{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:10px;font-size:13px;z-index:70;box-shadow:var(--shadow);max-width:calc(100% - 32px);width:max-content;text-align:center;transition:opacity .2s}
+.toast[hidden]{display:none}
+
+/* ── 모바일 (앱 너비 기준) ── */
+@container app (max-width:1020px){
+  .editor{grid-template-columns:minmax(0,1fr)}
+  .eseg{display:flex}
+  .editor[data-pane="form"] .pane-prev{position:absolute;left:-10000px;top:0;width:600px;visibility:hidden}
+  .editor[data-pane="prev"] .pane-form{display:none}
+  .pane-prev{position:static}
+  .medit{grid-template-columns:minmax(0,1fr)}
+  .hgrid{grid-template-columns:minmax(0,1fr)}
+}
+@container app (max-width:760px){
+  .shell{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
+  .side{display:none}
+  .mtop{display:flex;align-items:center;gap:9px;position:sticky;top:0;z-index:6;background:var(--ground);padding:10px 16px;border-bottom:1px solid var(--line)}
+  .mtop .logo{width:28px;height:28px;font-size:10px;border-radius:7px}
+  .mtop b{font-size:15px}
+  .mtop .pill{margin-left:auto}
+  .tabbar{display:grid;grid-template-columns:repeat(4,1fr);background:var(--surface);border-top:1px solid var(--line);padding:6px 4px 10px}
+  .tabbar button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--ink-3);cursor:pointer;padding:4px 0}
+  .tabbar button svg.i{width:22px;height:22px}
+  .tabbar button[aria-current="page"]{color:var(--accent-ink);font-weight:700}
+  .page{padding:16px 16px 28px;gap:16px}
+  .ph h1{font-size:19px}
+  .ph .acts.hide-m{display:none}
+  .fgrid{grid-template-columns:minmax(0,1fr)}
+  .sgrid{grid-template-columns:minmax(0,1fr)}
+  .slot{grid-template-columns:100px minmax(0,1fr)}
+  .slot .t{font-size:11.5px;padding:0 8px}
+  .sticky-act{display:flex;gap:8px;position:sticky;bottom:0;z-index:5;padding:10px 0 2px;background:linear-gradient(transparent,var(--ground) 30%)}
+  .sticky-act .btn{flex:1;height:44px}
+  .rhead{display:none}
+  .rrow,.rlist.noau .rrow{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"d st" "main main" "au snd";gap:4px 10px;padding:12px 16px}
+  .rrow .au{font-size:12px;color:var(--ink-3)}
+  .rrow .snd{text-align:right}
+  .mgrid{grid-template-columns:minmax(0,1fr)}
+  .ahead{display:none}
+  .arow{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"nm ed" "dp dp" "rl st" "mf ls";gap:6px 10px;padding:12px 16px}
+  .arow .ls{text-align:right}
+  .addrow{grid-template-columns:minmax(0,1fr)}
+  .rcrow{grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:12px 16px}
+  .rcrow .dp{grid-column:1/-1;grid-row:2}
+  .rcrow .ad{grid-column:1/-1;grid-row:3}
+  .overlay{align-items:flex-end;padding:0}
+  .dlg{border-radius:18px 18px 0 0;max-height:94%}
+  .toast{bottom:86px}
+  .sends .it{grid-template-columns:22px minmax(0,1fr) auto;padding:9px 16px}
+  .sends .it .mono{grid-column:2;grid-row:2}
+  .pgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* ── 1단계 추가 ── */
+.ver{position:absolute;left:14px;bottom:8px;font:500 10.5px var(--mono);color:var(--ink-3)}
+.side{position:relative;padding-bottom:30px}
+.side .me{margin-bottom:4px}
+.login{position:relative}
+.lcard.wide{width:min(440px,100%)}
+.spin{width:28px;height:28px;border-radius:50%;border:3px solid var(--line-2);border-top-color:var(--accent);animation:spin .8s linear infinite}
+.steps-l{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:13.5px;color:var(--ink-2)}
+.qrbox{align-self:center;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px;line-height:0}
+.qrbox img{width:180px;height:180px;display:block}
+.qrbox.sm img{width:160px;height:160px}
+details summary{cursor:pointer;font-size:13px;color:var(--ink-2)}
+details[open] summary{margin-bottom:8px}
+.ico-s{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--surface-3);color:var(--ink-3);flex:none}
+.ico-s.ok{background:var(--ok-soft);color:var(--ok)}
+.ico-s svg.i{width:16px;height:16px}
+#busy{position:absolute;top:0;left:0;right:0;height:3px;z-index:80;background:linear-gradient(90deg,transparent,var(--accent),transparent);background-size:40% 100%;background-repeat:no-repeat;animation:busy 1s linear infinite}
+@keyframes busy{from{background-position:-40% 0}to{background-position:140% 0}}
+.dlg .kv{grid-template-columns:96px minmax(0,1fr)}
+.dlg .secret{display:inline-block;font-size:16px}
+@container app (max-width:760px){ .ver{display:none} }
+
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div id="busy" hidden></div>
+  <div id="view"></div>
+  <div id="ov"></div>
+  <div class="toast" id="toast" role="status" hidden></div>
+</div>
+
+<script>
+/* ▼▼▼ 설치할 때 이 세 줄만 바꾸세요 (Supabase › Project Settings › API Keys) ▼▼▼ */
+window.NOTE_CONFIG = {
+  SUPABASE_URL: 'https://mocnlkrmutcadjzrpyfo.supabase.co',   // Project URL
+  SUPABASE_KEY: 'sb_publishable_qvscRRgAtBlEDrz-IxdJKQ_wVVS_8Lh',             // Publishable key (공개 키) — 비밀 키(sb_secret_…)는 절대 넣지 마세요
+  LOGIN_DOMAIN: 'note.local'                           // 바꾸지 마세요 (서버 함수와 같아야 함)
+};
+/* ▲▲▲ 여기까지 ▲▲▲ */
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ════════════════════════════════════════════════════════════════
+   note 앱 — 1단계 (로그인 · 2단계 인증 · 설정)
+   ════════════════════════════════════════════════════════════════ */
+(function(){
+'use strict';
+const VERSION = '1단계 · 2026-09-11';
+
+/* ───────── 유틸 ───────── */
+const $ = (s, el=document) => el.querySelector(s);
+const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = n => String(n).padStart(2,'0');
+const WD = '일월화수목금토';
+const fmtLong = d => `${d.getMonth()+1}월 ${d.getDate()}일 (${WD[d.getDay()]})`;
+const fmtDT = iso => { if (!iso) return '—'; const d = new Date(iso); const t = new Date(); const same = d.toDateString() === t.toDateString();
+  const y = new Date(t); y.setDate(t.getDate()-1);
+  return (same ? '오늘' : d.toDateString() === y.toDateString() ? '어제' : `${d.getMonth()+1}/${d.getDate()}`) + ` ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const fmtDate = iso => { if (!iso) return '—'; const d = new Date(iso); return `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())}`; };
+const telNorm = v => { const d = String(v||'').replace(/\D/g,''); if (!d) return ''; if (!/^01\d{8,9}$/.test(d)) return null;
+  return d.length === 11 ? `${d.slice(0,3)}-${d.slice(3,7)}-${d.slice(7)}` : `${d.slice(0,3)}-${d.slice(3,6)}-${d.slice(6)}`; };
+const pwOk = p => p.length >= 8 && /[A-Za-z]/.test(p) && /\d/.test(p);
+const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e){} } };
+
+const ICON = {
+  home:'<path d="M3.5 10.5 12 3.5l8.5 7V20.5h-6v-6h-5v6h-6z"/>',
+  doc:'<path d="M6.5 3h8l4 4v14h-12z"/><path d="M14.5 3v4h4"/><path d="M9.5 12.5h6M9.5 16h6"/>',
+  note:'<path d="M4 4.5h16v11.5H9.5L4 20z"/><path d="M8 8.5h8M8 12h5"/>',
+  gear:'<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  x:'<path d="M6 6l12 12M18 6 6 18"/>',
+  check:'<path d="m5 12.5 4.5 4.5L19 7"/>',
+  phone:'<rect x="7" y="2.5" width="10" height="19" rx="2.2"/><path d="M11 18.5h2"/>',
+  mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 6.5 8.5 7 8.5-7"/>',
+  shield:'<path d="M12 3 5 6v6c0 4.4 3 7.4 7 9 4-1.6 7-4.6 7-9V6z"/><path d="m9 12 2.2 2.2L15.2 10"/>',
+  lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  logout:'<path d="M14.5 4h4.5v16h-4.5M10 8l-4 4 4 4M6 12h9.5"/>',
+  trash:'<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/>',
+  alert:'<path d="M12 4 2.8 19.5h18.4z"/><path d="M12 10v4.5M12 17h.01"/>',
+  key:'<circle cx="8" cy="15" r="4"/><path d="m11 12 8.5-8.5M16 7l2.5 2.5"/>',
+  clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
+};
+const ic = (n, cls='') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]||''}</svg>`;
+
+/* ───────── 상태 ───────── */
+const S = {
+  screen:'loading', route:'home', stab:'me',
+  me:null, email:'', factorId:null, enroll:null, reEnroll:null, factors:[],
+  users:null, mail:null, sms:null, settings:{},
+  err:'',
+};
+const isAdmin = () => S.me && S.me.role === 'admin' && S.me.active;
+
+/* ───────── Supabase ───────── */
+const CFG = window.NOTE_CONFIG || {};
+const configured = /^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/.test(CFG.SUPABASE_URL || '') && !/YOUR-/.test((CFG.SUPABASE_URL||'') + (CFG.SUPABASE_KEY||'')) && (CFG.SUPABASE_KEY || '').length > 20;
+let sb = null;
+if (configured && window.supabase){
+  sb = window.supabase.createClient(CFG.SUPABASE_URL.replace(/\/$/,''), CFG.SUPABASE_KEY, {
+    auth:{ persistSession:true, autoRefreshToken:true, storageKey:'note-auth', detectSessionInUrl:false },
+  });
+}
+const DOMAIN = CFG.LOGIN_DOMAIN || 'note.local';
+
+function dbMsg(error){
+  if (!error) return '';
+  const c = error.code || '', m = error.message || '';
+  if (c === '23505') return '이미 목록에 있어요';
+  if (c === '23514') return '형식을 확인하세요';
+  if (c === '42501' || /row-level security|permission denied/i.test(m)) return '권한이 없습니다';
+  if (/JWT|jwt expired/i.test(m)) return '로그인이 만료되었습니다. 다시 로그인하세요';
+  if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return '인터넷 연결을 확인하세요';
+  return m || '처리하지 못했습니다';
+}
+async function fn(action, body={}){
+  const { data, error } = await sb.functions.invoke('admin-users', { body: Object.assign({ action }, body) });
+  if (error){
+    let msg = error.message || '';
+    try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch(e){}
+    if (/Failed to send a request|Failed to fetch/i.test(msg)) msg = '서버 함수(admin-users)에 연결하지 못했습니다. 배포됐는지 확인하세요';
+    if (/not found|404/i.test(msg)) msg = '서버 함수(admin-users)가 아직 배포되지 않았습니다';
+    throw new Error(msg);
+  }
+  if (!data || !data.ok) throw new Error((data && data.error) || '처리하지 못했습니다');
+  return data;
+}
+let busyN = 0;
+async function busy(p){ busyN++; $('#busy').hidden = false; try { return await p; } finally { if (--busyN <= 0){ busyN = 0; $('#busy').hidden = true; } } }
+async function lockBtn(btn, label, work){
+  const old = btn ? btn.innerHTML : ''; if (btn){ btn.disabled = true; btn.textContent = label; }
+  try { return await busy(work()); }
+  finally { if (btn && btn.isConnected){ btn.disabled = false; btn.innerHTML = old; } }
+}
+
+/* ───────── 흐름: 로그인 → 2단계 → 직원 정보 → 첫 비번 변경 → 앱 ───────── */
+async function boot(){
+  if (!configured){ S.screen = 'setup'; return render(); }
+  if (!sb){ S.screen = 'setup'; S.err = 'Supabase 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하세요.'; return render(); }
+  const { data } = await sb.auth.getSession();
+  if (!data.session){ S.screen = 'login'; return render(); }
+  S.email = data.session.user.email || '';
+  await afterPassword();
+}
+async function afterPassword(){
+  const { data: lv, error } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (error){ return toLogin(dbMsg(error)); }
+  if (lv.currentLevel === 'aal2') return loadMe();
+  const { data: fl, error: fe } = await sb.auth.mfa.listFactors();
+  if (fe) return toLogin(dbMsg(fe));
+  const verified = (fl.totp || []).filter(f => f.status === 'verified');
+  if (verified.length){ S.factorId = verified[0].id; S.screen = 'otp'; S.err = ''; return render(); }
+  return startEnroll(false);
+}
+async function startEnroll(isRe){
+  try {
+    const { data: fl } = await sb.auth.mfa.listFactors();
+    for (const f of (fl && fl.all || []).filter(f => f.factor_type === 'totp' && f.status !== 'verified')) await sb.auth.mfa.unenroll({ factorId: f.id });
+    const { data, error } = await sb.auth.mfa.enroll({ factorType:'totp', friendlyName:'note ' + new Date().toISOString().slice(0,16).replace('T',' ') });
+    if (error) throw error;
+    const en = { id:data.id, qr:data.totp.qr_code, secret:data.totp.secret };
+    if (isRe){ S.reEnroll = en; render(); setTimeout(() => { const c = $('#re-code'); if (c) c.focus(); }, 30); }
+    else { S.enroll = en; S.screen = 'enroll'; S.err = ''; render(); }
+  } catch(e){
+    if (isRe) toast('등록을 시작하지 못했습니다: ' + dbMsg(e));
+    else toLogin('인증 앱 등록을 시작하지 못했습니다: ' + dbMsg(e));
+  }
+}
+async function loadMe(){
+  const { data: u } = await sb.auth.getUser();
+  if (!u || !u.user) return toLogin('로그인이 만료되었습니다');
+  S.email = u.user.email || '';
+  const { data, error } = await sb.from('profiles').select('*').eq('id', u.user.id).maybeSingle();
+  if (error || !data){ S.screen = 'noprofile'; S.err = error ? dbMsg(error) : ''; return render(); }
+  S.me = data;
+  if (data.must_change_pw){ S.screen = 'forcepw'; S.err = ''; return render(); }
+  S.screen = 'app'; render();
+  preload();
+}
+async function preload(){
+  await Promise.all([loadSettings(), loadRcpt('mail'), loadRcpt('sms'), isAdmin() ? loadUsers() : null]);
+  if (S.screen === 'app') render();
+}
+function toLogin(msg){ S.screen = 'login'; S.err = msg || ''; S.me = null; S.users = S.mail = S.sms = null; S.route = 'home'; S.stab = 'me'; S.reEnroll = null; S.factors = []; closeOv(); render(); }
+async function logout(){ try { await sb.auth.signOut({ scope:'local' }); } catch(e){} toLogin(''); }
+
+async function loadSettings(){ const { data } = await sb.from('app_settings').select('key,value'); S.settings = Object.fromEntries((data||[]).map(r => [r.key, r.value])); }
+async function loadRcpt(kind){
+  const t = kind === 'mail' ? 'mail_recipients' : 'sms_recipients';
+  const { data, error } = await sb.from(t).select('*').order('created_at');
+  if (error){ toast(dbMsg(error)); return; }
+  S[kind] = data || [];
+}
+async function loadUsers(){ try { S.users = (await fn('list')).users; } catch(e){ S.users = []; toast(e.message); } }
+
+/* ───────── 렌더 ───────── */
+function render(){
+  const v = $('#view');
+  const map = { loading:viewLoading, setup:viewSetup, login:viewLogin, otp:viewOtp, enroll:viewEnroll, forcepw:viewForcePw, noprofile:viewNoProfile, app:() => shell(viewRoute()) };
+  v.innerHTML = (map[S.screen] || viewLoading)();
+  if (S.screen === 'otp'){ const o = $('#otp0'); if (o) o.focus(); }
+  if (S.screen === 'login'){ const i = $('#lg-id'); if (i && !i.value) i.focus(); else { const p = $('#lg-pw'); if (p) p.focus(); } }
+  if (S.screen === 'enroll'){ const c = $('#en-code'); if (c) c.focus(); }
+}
+const brand = sub => `<div class="brand"><div class="logo">note</div><div><b>note</b><small>${sub}</small></div></div>`;
+function viewLoading(){ return `<div class="login"><div class="lcard" style="align-items:center;text-align:center">${brand('불러오는 중…')}<div class="spin" aria-label="불러오는 중"></div></div></div>`; }
+function viewSetup(){
+  return `<div class="login"><div class="lcard">${brand('설치 확인')}
+    <h2>설치 설정이 비어 있어요</h2>
+    <p>${esc(S.err) || 'index.html 위쪽 <code>NOTE_CONFIG</code> 에 Supabase 프로젝트 주소(Project URL)와 공개 키(Publishable key)를 넣고 다시 올려 주세요.'}</p>
+    <div class="file">SUPABASE_URL: ${esc(CFG.SUPABASE_URL || '(비어 있음)')}</div>
+    <div class="foot">${ic('lock')}<span>공개 키(sb_publishable_…)만 넣습니다. 비밀 키(sb_secret_…)는 절대 넣지 마세요.</span></div>
+  </div></div>`;
+}
+function viewLogin(){
+  const last = store.get('note-last-id') || '';
+  return `<div class="login"><form class="lcard" data-form="login" novalidate>
+    ${brand('현장활동보고 · 메모')}
+    <div class="field"><label for="lg-id">아이디</label><input class="in" id="lg-id" autocomplete="username" autocapitalize="off" spellcheck="false" value="${esc(last)}"></div>
+    <div class="field"><label for="lg-pw">비밀번호</label><input class="in" id="lg-pw" type="password" autocomplete="current-password"></div>
+    <div class="errtx" id="lg-err" role="alert">${esc(S.err)}</div>
+    <button class="btn primary" type="submit" style="height:44px">로그인</button>
+    <div class="foot">${ic('lock')}<span>계정은 관리자가 만들어 드립니다. 비밀번호를 잊었으면 관리자에게 초기화를 요청하세요.</span></div>
+  </form><span class="ver">${VERSION}</span></div>`;
+}
+function viewOtp(){
+  return `<div class="login"><form class="lcard" data-form="otp" novalidate>
+    ${brand('2단계 인증')}
+    <h2>인증 앱의 6자리 숫자</h2>
+    <p>휴대폰의 Google OTP(또는 Microsoft Authenticator)에 표시된 <b>note</b> 숫자를 입력하세요. 숫자는 30초마다 바뀝니다.</p>
+    <div class="otp">${[0,1,2,3,4,5].map(i => `<input id="otp${i}" inputmode="numeric" maxlength="1" autocomplete="${i?'off':'one-time-code'}" aria-label="${i+1}번째 숫자">`).join('')}</div>
+    <div class="errtx" id="otp-err" role="alert">${esc(S.err)}</div>
+    <button class="btn primary" type="submit" id="otp-ok" style="height:44px" disabled>확인</button>
+    <button class="btn quiet" type="button" data-act="logout">다른 아이디로 로그인</button>
+    <div class="foot">${ic('phone')}<span>휴대폰을 바꿨거나 잃어버렸다면 관리자에게 <b>2단계 인증 초기화</b>를 요청하세요. 다음 로그인 때 새로 등록합니다.</span></div>
+  </form></div>`;
+}
+function secretGroups(s){ return esc(String(s||'').replace(/(.{4})/g,'$1 ').trim()); }
+function viewEnroll(){
+  const e = S.enroll || {};
+  return `<div class="login"><form class="lcard wide" data-form="enroll" novalidate>
+    ${brand('2단계 인증 등록')}
+    <h2>휴대폰 인증 앱을 등록해 주세요</h2>
+    <p>note 는 비밀번호와 함께 휴대폰 인증 앱의 6자리 숫자로 로그인합니다. 처음 한 번만 등록하면 됩니다.</p>
+    <ol class="steps-l">
+      <li>휴대폰에 <b>Google OTP</b>(Google Authenticator) 또는 <b>Microsoft Authenticator</b> 앱을 설치하세요.</li>
+      <li>앱에서 <b>＋ → QR 코드 스캔</b>을 누르고 아래 그림을 비추세요.</li>
+    </ol>
+    <div class="qrbox"><img src="${esc(e.qr)}" alt="인증 앱 등록용 QR 코드" width="180" height="180"></div>
+    <details><summary>스캔이 안 되면 — 키 직접 입력</summary><div class="secret" id="en-secret">${secretGroups(e.secret)}</div><p class="hint" style="margin:6px 0 0">앱에서 ‘설정 키 입력’을 고르고 계정 이름은 note, 키 종류는 ‘시간 기준’으로 두세요.</p></details>
+    <ol class="steps-l" start="3"><li>앱에 뜬 <b>6자리 숫자</b>를 입력하세요.</li></ol>
+    <input class="in mono" id="en-code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000" style="font-size:20px;letter-spacing:.3em;text-align:center;height:50px" aria-label="6자리 숫자">
+    <div class="errtx" id="en-err" role="alert">${esc(S.err)}</div>
+    <button class="btn primary" type="submit" style="height:44px">등록하고 시작하기</button>
+    <button class="btn quiet" type="button" data-act="logout">나중에 하기 (로그아웃)</button>
+  </form></div>`;
+}
+function viewForcePw(){
+  return `<div class="login"><form class="lcard" data-form="forcepw" novalidate>
+    ${brand('비밀번호 변경')}
+    <h2>새 비밀번호를 정해 주세요</h2>
+    <p>관리자가 준 임시 비밀번호로 로그인하셨어요. 본인만 아는 비밀번호로 바꿔야 쓸 수 있습니다.</p>
+    <input type="text" autocomplete="username" value="${esc(S.me && S.me.login_id)}" hidden>
+    <div class="field"><label for="fp0">임시 비밀번호</label><input class="in" type="password" id="fp0" autocomplete="current-password"></div>
+    <div class="field"><label for="fp1">새 비밀번호</label><input class="in" type="password" id="fp1" autocomplete="new-password"><span class="hint">8자 이상, 영문과 숫자를 섞어 주세요</span></div>
+    <div class="field"><label for="fp2">새 비밀번호 확인</label><input class="in" type="password" id="fp2" autocomplete="new-password"></div>
+    <div class="errtx" id="fp-err" role="alert">${esc(S.err)}</div>
+    <button class="btn primary" type="submit" style="height:44px">바꾸고 시작하기</button>
+    <button class="btn quiet" type="button" data-act="logout">로그아웃</button>
+  </form></div>`;
+}
+function viewNoProfile(){
+  return `<div class="login"><div class="lcard">${brand('확인 필요')}
+    <h2>직원 정보가 없어요</h2>
+    <p>로그인은 됐지만 직원 정보(profiles)를 찾지 못했습니다. 관리자에게 알려 주세요.${S.err ? `<br><span class="hint">${esc(S.err)}</span>` : ''}</p>
+    <p class="hint">관리자라면: 설치 가이드의 SQL(01_기본.sql)을 실행했는지, 계정을 SQL 실행 뒤에 만들었는지 확인하세요.</p>
+    <button class="btn" data-act="logout">로그아웃</button></div></div>`;
+}
+
+/* ── 셸 ── */
+const NAV = [['home','홈','home'],['reports','현장활동보고서','doc'],['meetings','메모','note'],['settings','설정','gear']];
+function shell(inner){
+  const u = S.me;
+  return `<div class="shell">
+  <nav class="side" aria-label="주 메뉴">${brand('현장활동보고 · 메모')}
+    <div class="nav">${NAV.map(([n,l,i]) => `<button data-act="go" data-to="${n}" ${S.route===n?'aria-current="page"':''}>${ic(i)}${l}</button>`).join('')}</div>
+    <div class="me"><div class="av">${esc((u.name||'?')[0])}</div><div class="who"><b>${esc(u.name)} ${esc(u.title)}</b><span>${isAdmin()?'관리자':'직원'} · ${esc(u.dept||u.login_id)}</span></div>
+      <button class="iconbtn" data-act="logout" title="로그아웃" aria-label="로그아웃">${ic('logout')}</button></div>
+    <span class="ver">${VERSION}</span>
+  </nav>
+  <main class="main" id="main">
+    <div class="mtop"><div class="logo">note</div><b>note</b><span class="pill role">${esc(u.name)} · ${isAdmin()?'관리자':'직원'}</span></div>
+    ${inner}
+  </main>
+  <nav class="tabbar" aria-label="하단 메뉴">${NAV.map(([n,l,i]) => `<button data-act="go" data-to="${n}" ${S.route===n?'aria-current="page"':''}>${ic(i)}${l==='현장활동보고서'?'보고서':l}</button>`).join('')}</nav>
+</div>`;
+}
+function viewRoute(){
+  if (S.route === 'settings') return viewSettings();
+  if (S.route === 'reports') return viewSoon('현장활동보고서', '보고서 작성 · A4 미리보기 · 목록은 2단계에서 열립니다.', '보고하기(메일 PDF · 문자)는 4단계');
+  if (S.route === 'meetings') return viewSoon('메모', '메모 · 사진 첨부 · 할 일은 3단계에서 열립니다.', '사진은 비공개 저장소에 보관');
+  return viewHome();
+}
+function viewSoon(t, a, b){
+  return `<div class="page"><div class="ph"><div><h1>${t}</h1><div class="sub">준비 중</div></div></div>
+    <section class="panel empty" style="padding:40px 20px"><b style="color:var(--ink);font-size:15px">${a}</b><br><span class="hint">${b}</span></section></div>`;
+}
+function viewHome(){
+  const u = S.me, now = new Date();
+  const n = v => v == null ? '…' : v.length;
+  const checks = [
+    ['로그인 · 2단계 인증', true, '비밀번호 + 인증 앱으로 들어왔어요'],
+    ['직원 정보', true, `${u.login_id} · ${isAdmin()?'관리자':'직원'}`],
+    ['메일 수신자', S.mail && S.mail.length > 0, S.mail ? `${S.mail.length}명` : '불러오는 중'],
+    ['문자 수신자', S.sms && S.sms.length > 0, S.sms ? `${S.sms.length}명` : '불러오는 중'],
+  ];
+  if (isAdmin()) checks.push(['계정', S.users && S.users.length > 1, S.users ? `${S.users.length}개 · 2단계 등록 ${S.users.filter(x => x.mfa).length}명` : '불러오는 중']);
+  return `<div class="page">
+    <div class="ph"><div><h1>${fmtLong(now)}</h1><div class="sub">${esc(u.name)} ${esc(u.title)} · ${esc(u.dept)}</div></div></div>
+    <div class="hgrid">
+      <section class="panel"><div class="panel-h"><h2>준비 상태</h2><span class="hint">${VERSION}</span></div>
+        <div class="mini">${checks.map(([t,ok,d]) => `<div class="it" style="cursor:default"><div class="ico-s ${ok?'ok':''}">${ic(ok?'check':'clock')}</div><div class="tx"><b>${t}</b><span>${esc(d)}</span></div></div>`).join('')}</div></section>
+      <section class="panel"><div class="panel-h"><h2>다음 단계</h2></div>
+        <div class="mini">${[['2단계','현장활동보고서 작성 · A4 미리보기 · 목록'],['3단계','메모 · 사진 첨부 · 할 일'],['4단계','보고하기 — Gmail PDF · 솔라피 문자 · 7일 링크'],['5단계','홈 화면 앱 설치(PWA) · 마무리']].map(([a,b]) => `<div class="it" style="cursor:default"><span class="pill plain">${a}</span><div class="tx"><span style="color:var(--ink-2);font-size:13px">${b}</span></div></div>`).join('')}</div>
+        ${isAdmin() ? `<div class="panel-b" style="border-top:1px solid var(--line)"><button class="btn sm" data-act="go" data-to="settings" data-tab="accounts">${ic('plus')}직원 계정 추가하러 가기</button></div>` : ''}</section>
+    </div>
+  </div>`;
+}
+
+/* ── 설정 ── */
+function viewSettings(){
+  const tabs = [['me','내 정보 · 비밀번호'],['mfa','2단계 인증'],...(isAdmin()?[['accounts','계정 관리']]:[]),['mail','메일 수신자'],['sms','문자 수신자']];
+  if (!tabs.some(t => t[0] === S.stab)) S.stab = 'me';
+  const body = ({ me:setMe, mfa:setMfa, accounts:setAccounts, mail:() => setRcpt('mail'), sms:() => setRcpt('sms') })[S.stab]();
+  return `<div class="page">
+    <div class="ph"><div><h1>설정</h1><div class="sub">${isAdmin()?'관리자 — 계정과 수신자 목록을 관리합니다':'내 정보와 비밀번호, 2단계 인증을 관리합니다'}</div></div></div>
+    <div class="tabs" role="tablist">${tabs.map(([k,l]) => `<button role="tab" data-act="stab" data-v="${k}" aria-selected="${S.stab===k}">${l}</button>`).join('')}</div>
+    <div id="sbody">${body}</div>
+  </div>`;
+}
+function setMe(){
+  const u = S.me;
+  return `<div class="sgrid">
+    <section class="panel"><div class="panel-h"><h2>내 정보</h2></div><form class="panel-b" data-form="phone" novalidate>
+      <dl class="kv"><dt>이름</dt><dd>${esc(u.name)} ${esc(u.title)}</dd><dt>아이디</dt><dd class="mono">${esc(u.login_id)}</dd><dt>소속</dt><dd>${esc(u.dept)||'—'}</dd><dt>권한</dt><dd><span class="pill role">${u.role==='admin'?'관리자':'직원'}</span></dd></dl>
+      <div class="field" style="margin-top:16px"><label for="me-phone">휴대폰</label><div style="display:flex;gap:8px"><input class="in" id="me-phone" value="${esc(u.phone)}" inputmode="tel" placeholder="010-0000-0000"><button class="btn" type="submit">저장</button></div></div>
+      <p class="hint" style="margin:8px 0 0">이름 · 소속 · 권한은 관리자가 바꿀 수 있어요.</p></form></section>
+    <section class="panel"><div class="panel-h"><h2>비밀번호 변경</h2></div><form class="panel-b" data-form="pw" style="display:flex;flex-direction:column;gap:12px" novalidate>
+      <input type="text" autocomplete="username" value="${esc(u.login_id)}" hidden>
+      <div class="field"><label for="pw0">현재 비밀번호</label><input class="in" type="password" id="pw0" autocomplete="current-password"></div>
+      <div class="field"><label for="pw1">새 비밀번호</label><input class="in" type="password" id="pw1" autocomplete="new-password"><span class="hint">8자 이상, 영문과 숫자를 섞어 주세요</span></div>
+      <div class="field"><label for="pw2">새 비밀번호 확인</label><input class="in" type="password" id="pw2" autocomplete="new-password"></div>
+      <div class="errtx" id="pw-err" role="alert"></div>
+      <div><button class="btn primary" type="submit">${ic('key')}비밀번호 바꾸기</button></div>
+    </form></section>
+  </div>`;
+}
+function setMfa(){
+  const f = S.factors, re = S.reEnroll;
+  const has = f.length > 0;
+  return `<div class="sgrid"><div class="stack">
+    <section class="panel"><div class="panel-h"><h2>내 2단계 인증</h2></div><div class="panel-b" style="display:flex;flex-direction:column;gap:14px">
+      <div class="status-line"><div class="ico ${has?'':'no'}">${ic(has?'shield':'alert')}</div>
+        <div><b>${has?'사용 중':'확인 중…'}</b><div class="hint">${has ? f.map(x => `인증 앱 등록 ${fmtDate(x.created_at)}`).join(' · ') : ''}</div></div></div>
+      ${re ? '' : `<div><button class="btn" data-act="mfaStart">${ic('phone')}휴대폰을 바꿨어요 — 다시 등록</button></div>`}
+      <p class="hint" style="margin:0">비밀번호가 새어 나가도 휴대폰이 없으면 로그인할 수 없게 막는 장치입니다. note 는 전 직원이 사용합니다.</p>
+    </div></section>
+    ${re ? `<section class="panel"><div class="panel-h"><h2>새 휴대폰에 등록</h2><button class="btn sm quiet" data-act="mfaCancel">취소</button></div><form class="panel-b" data-form="reenroll" novalidate>
+      <div class="mfa"><div class="qrbox sm"><img src="${esc(re.qr)}" alt="인증 앱 등록용 QR 코드" width="160" height="160"></div>
+        <div class="steps">
+          <div><b>1.</b> 새 휴대폰의 인증 앱에서 <b>QR 코드 스캔</b>을 누르세요.</div>
+          <details><summary class="hint">스캔이 안 되면 — 키 직접 입력</summary><div class="secret">${secretGroups(re.secret)}</div></details>
+          <div><b>2.</b> 앱에 뜬 6자리 숫자를 입력하세요. 등록되면 예전 휴대폰의 등록은 지워집니다.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><label class="sr" for="re-code">6자리 숫자</label><input class="in mono" id="re-code" inputmode="numeric" maxlength="6" placeholder="000000" style="width:140px;letter-spacing:.2em;font-size:16px"><button class="btn primary" type="submit">등록</button></div>
+          <div class="errtx" id="re-err" role="alert"></div>
+        </div></div></form></section>` : ''}
+  </div><div class="stack"></div></div>`;
+}
+function setAccounts(){
+  const list = S.users;
+  if (!list) return `<section class="panel"><div class="empty">계정 목록을 불러오는 중…</div></section>`;
+  return `<section class="panel"><div class="panel-h"><h2>계정 ${list.length}개</h2><button class="btn primary sm" data-act="acctNew">${ic('plus')}계정 추가</button></div>
+    <div class="ahead"><span class="nm">이름 · 아이디</span><span class="dp">소속</span><span class="rl">권한</span><span class="mf">2단계</span><span class="st">상태</span><span class="ls">마지막 로그인</span><span class="ed"></span></div>
+    ${list.map(u => `<div class="arow ${u.active?'':'off'}"><div class="nm"><b>${esc(u.name)} ${esc(u.title)}</b><span>${esc(u.login_id)}</span></div>
+      <div class="dp">${esc(u.dept)||'—'}</div><div class="rl"><span class="pill ${u.role==='admin'?'role':'plain'}">${u.role==='admin'?'관리자':'직원'}</span></div>
+      <div class="mf">${u.mfa?'<span class="pill sent">2단계 등록</span>':'<span class="pill draft">2단계 미등록</span>'}</div>
+      <div class="st">${!u.active?'<span class="pill off">사용중지</span>':u.must_change_pw?'<span class="pill draft">첫 로그인 전</span>':'<span class="pill sent">사용</span>'}</div>
+      <div class="ls">${fmtDT(u.last_sign_in_at)}</div><div class="ed"><button class="btn sm" data-act="acctEdit" data-id="${esc(u.id)}">수정</button></div></div>`).join('')}
+  </section>
+  <p class="hint" style="margin:0">새 계정은 임시 비밀번호로 시작하고, 첫 로그인 때 비밀번호 변경과 인증 앱 등록을 거칩니다. 기록을 남기기 위해 계정은 삭제하지 않고 <b>사용중지</b>합니다.</p>`;
+}
+function setRcpt(kind){
+  const list = S[kind], mail = kind === 'mail', ed = isAdmin();
+  const sender = mail ? `<section class="panel"><div class="panel-h"><h2>보내는 메일</h2><span class="pill plain">Gmail · 4단계에서 연결</span></div><form class="panel-b" data-form="sender" style="display:flex;flex-direction:column;gap:12px" novalidate>
+      <div class="field"><label for="snd-name">보낸 사람 이름</label><div style="display:flex;gap:8px"><input class="in" id="snd-name" value="${esc(S.settings.sender_name || 'note')}" maxlength="30" ${ed?'':'readonly'}>${ed?'<button class="btn" type="submit">저장</button>':''}</div></div>
+      <div class="hint">받는 사람에게는 “${esc(S.settings.sender_name || 'note')} &lt;보고용 Gmail&gt;”로 보입니다. Gmail 앱 비밀번호는 이 화면이 아니라 서버 비밀 저장소에 넣습니다.</div>
+    </form></section>` : '';
+  const add = ed ? `<section class="panel"><div class="panel-h"><h2>${mail?'메일':'문자'} 수신자 추가</h2></div><form class="panel-b addrow" data-form="add-${kind}" novalidate>
+      <div class="field"><label for="${kind}-nm" class="req">이름</label><input class="in" id="${kind}-nm" maxlength="30" placeholder="예: 최OO"></div>
+      <div class="field"><label for="${kind}-dp">소속 · 직책</label><input class="in" id="${kind}-dp" maxlength="40" placeholder="예: 운영본부장"></div>
+      <div class="field"><label for="${kind}-ad" class="req">${mail?'이메일':'휴대폰'}</label><input class="in mono" id="${kind}-ad" ${mail?'type="email" placeholder="name@company.co.kr"':'inputmode="tel" placeholder="010-0000-0000"'}></div>
+      <button class="btn primary" type="submit" style="height:40px">${ic('plus')}추가</button>
+      <div class="errtx" id="${kind}-err" style="grid-column:1/-1;min-height:0" role="alert"></div>
+    </form></section>` : `<div class="banner ro">${ic('lock')}<span>수신자 목록은 관리자가 관리합니다. 보고할 때 이 목록에서 골라 보냅니다.</span></div>`;
+  const rows = !list ? '<div class="empty">불러오는 중…</div>' : list.length ? list.map(x => `<div class="rcrow"><b>${esc(x.name)}</b><span class="dp">${esc(x.dept)||'—'}</span><span class="ad">${esc(mail?x.email:x.phone)}</span>
+      <button class="tog" role="switch" aria-checked="${x.is_default}" data-act="rcDef" data-kind="${kind}" data-id="${esc(x.id)}" ${ed?'':'disabled'}><i></i>기본 선택</button>
+      ${ed ? `<button class="btn sm danger" data-act="rcDel" data-kind="${kind}" data-id="${esc(x.id)}">${ic('trash')}삭제</button>` : '<span></span>'}</div>`).join('') : '<div class="empty">수신자가 없습니다. 보고하려면 한 명 이상 필요해요.</div>';
+  return `${sender}${add}<section class="panel"><div class="panel-h"><h2>${mail?'메일':'문자'} 수신자 ${list?list.length:''}명</h2><span class="hint">‘기본 선택’이 켜진 사람은 보고하기 창에 미리 체크됩니다</span></div><div>${rows}</div></section>
+    ${mail ? '' : `<p class="hint" style="margin:0">번호는 글자로 저장해 앞자리 0이 지워지지 않습니다. 90바이트(한글 약 45자)를 넘으면 장문(LMS)으로 보냅니다.</p>`}`;
+}
+
+/* ───────── 오버레이 ───────── */
+function openOv(html){ $('#ov').innerHTML = html; const f = $('#ov input:not([readonly])'); if (f) setTimeout(() => f.focus(), 30); }
+function closeOv(){ $('#ov').innerHTML = ''; }
+function dlg(title, body, foot){
+  return `<div class="overlay" data-act="ovBg"><div class="dlg" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="dlg-h"><h2>${esc(title)}</h2><button class="iconbtn" data-act="closeOv" aria-label="닫기">${ic('x')}</button></div><div class="dlg-b" id="dlg-b">${body}</div><div class="dlg-f" id="dlg-f">${foot}</div></div></div>`;
+}
+function acctForm(u){
+  const nw = !u; u = u || { login_id:'', name:'', dept:'', title:'', phone:'', role:'member' };
+  return `<form id="acct-form" data-form="acct" data-id="${nw?'':esc(u.id)}" novalidate><div class="fgrid">
+    <div class="field"><label for="a-name" class="req">이름</label><input class="in" id="a-name" value="${esc(u.name)}" maxlength="30"></div>
+    <div class="field"><label for="a-login" class="req">아이디</label><input class="in mono" id="a-login" value="${esc(u.login_id)}" ${nw?'placeholder="영문 소문자·숫자 (예: kim05)" autocapitalize="off" spellcheck="false"':'readonly'}></div>
+    <div class="field"><label for="a-dept">소속</label><input class="in" id="a-dept" value="${esc(u.dept)}" maxlength="40"></div>
+    <div class="field"><label for="a-title">직책</label><input class="in" id="a-title" value="${esc(u.title)}" maxlength="40"></div>
+    <div class="field full"><label for="a-phone">휴대폰</label><input class="in" id="a-phone" value="${esc(u.phone)}" inputmode="tel" placeholder="010-0000-0000"></div>
+    <div class="field full"><span class="lbl">권한</span><div class="seg" role="group" id="a-role" data-v="${u.role}">${[['member','직원 — 본인 보고서·메모'],['admin','관리자 — 전체 보고서 열람·계정·수신자 관리']].map(([v,l]) => `<button type="button" data-act="aRole" data-v="${v}" aria-pressed="${u.role===v}">${l}</button>`).join('')}</div></div>
+  </div>
+  ${nw ? `<p class="hint" style="margin:14px 0 0">만들면 <b>임시 비밀번호</b>가 한 번 표시됩니다. 직원에게 전달하면 첫 로그인 때 새 비밀번호와 인증 앱을 등록합니다.</p>`
+  : `<div class="panel" style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;margin-top:16px">
+      <div class="lbl">보안 조치</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" type="button" data-act="acctResetPw" data-id="${esc(u.id)}">${ic('key')}비밀번호 초기화</button>
+      <button class="btn sm" type="button" data-act="acctResetMfa" data-id="${esc(u.id)}" ${u.mfa?'':'disabled'}>${ic('phone')}2단계 인증 초기화</button>
+      ${u.id !== S.me.id ? `<button class="btn sm ${u.active?'danger':''}" type="button" data-act="acctActive" data-id="${esc(u.id)}" data-v="${u.active?'0':'1'}">${u.active?'사용중지':'다시 사용'}</button>` : ''}</div>
+      <div class="hint" id="a-msg">2단계 인증 초기화는 휴대폰을 바꾸거나 잃어버린 직원에게 씁니다.</div></div>`}
+  <div class="errtx" id="a-err" role="alert"></div></form>`;
+}
+function showTemp(title, name, login, pw){
+  openOv(dlg(title, `<p style="margin:0">${esc(name)}님에게 아래 내용을 전달하세요. <b>이 창을 닫으면 다시 볼 수 없습니다.</b></p>
+    <dl class="kv"><dt>접속 주소</dt><dd class="mono" style="overflow-wrap:anywhere">${esc(location.origin + location.pathname)}</dd><dt>아이디</dt><dd class="mono">${esc(login)}</dd><dt>임시 비밀번호</dt><dd><span class="secret" id="tmp-pw">${esc(pw)}</span></dd></dl>
+    <p class="hint" style="margin:0">첫 로그인 때 비밀번호를 바꾸고 휴대폰 인증 앱을 등록하게 됩니다.</p>`,
+    `<button class="btn" data-act="copyTemp" data-t="${esc(`[note] 접속 ${location.origin + location.pathname}\n아이디 ${login}\n임시 비밀번호 ${pw}`)}">${ic('copy')}내용 복사</button><button class="btn primary" data-act="closeOv">확인</button>`));
+}
+
+/* ───────── 토스트 ───────── */
+let tT;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(tT); tT = setTimeout(() => t.hidden = true, 3200); }
+
+/* ───────── 동작 ───────── */
+async function openSettingsTab(tab){
+  S.stab = tab; S.reEnroll = null; render();
+  if (tab === 'mfa'){ const { data } = await sb.auth.mfa.listFactors(); S.factors = (data && data.totp || []).filter(f => f.status === 'verified'); if (S.stab === 'mfa') render(); }
+  if (tab === 'accounts' && isAdmin()){ await busy(loadUsers()); if (S.stab === 'accounts') render(); }
+  if (tab === 'mail' || tab === 'sms'){ await busy(Promise.all([loadRcpt(tab), loadSettings()])); if (S.stab === tab) render(); }
+}
+
+document.addEventListener('click', async e => {
+  const t = e.target.closest('[data-act]'); if (!t) return;
+  const a = t.dataset.act;
+  if (a === 'ovBg'){ if (e.target === t) closeOv(); return; }
+  try {
+    switch (a){
+      case 'go': S.route = t.dataset.to; closeOv(); if (S.route === 'settings') await openSettingsTab(t.dataset.tab || S.stab); else render(); { const m = $('#main'); if (m) m.scrollTop = 0; } break;
+      case 'logout': await logout(); break;
+      case 'stab': await openSettingsTab(t.dataset.v); break;
+      case 'closeOv': closeOv(); break;
+      case 'mfaStart': await busy(startEnroll(true)); break;
+      case 'mfaCancel': if (S.reEnroll){ await sb.auth.mfa.unenroll({ factorId:S.reEnroll.id }).catch(() => null); } S.reEnroll = null; render(); break;
+      case 'acctNew': openOv(dlg('계정 추가', acctForm(null), `<button class="btn" data-act="closeOv">취소</button><button class="btn primary" type="submit" form="acct-form">계정 만들기</button>`)); break;
+      case 'acctEdit': { const u = (S.users||[]).find(x => x.id === t.dataset.id); if (u) openOv(dlg(`${u.name} ${u.title} 계정`, acctForm(u), `<button class="btn" data-act="closeOv">취소</button><button class="btn primary" type="submit" form="acct-form">저장</button>`)); break; }
+      case 'aRole': { const g = $('#a-role'); g.dataset.v = t.dataset.v; $$('button', g).forEach(b => b.setAttribute('aria-pressed', b === t)); break; }
+      case 'acctResetPw': {
+        if (!armed(t, '정말 초기화')) break;
+        const u = S.users.find(x => x.id === t.dataset.id);
+        const r = await lockBtn(t, '초기화 중…', () => fn('reset_password', { id:u.id }));
+        await loadUsers(); render(); showTemp('비밀번호를 초기화했어요', u.name, u.login_id, r.temp_password); break; }
+      case 'acctResetMfa': {
+        if (!armed(t, '정말 초기화')) break;
+        const u = S.users.find(x => x.id === t.dataset.id);
+        await lockBtn(t, '초기화 중…', () => fn('reset_mfa', { id:u.id }));
+        await loadUsers(); closeOv(); render(); toast(`${u.name}님의 인증 앱 등록을 지웠어요. 다음 로그인 때 새로 등록합니다`); break; }
+      case 'acctActive': {
+        const on = t.dataset.v === '1';
+        if (!on && !armed(t, '정말 사용중지')) break;
+        const u = S.users.find(x => x.id === t.dataset.id);
+        await lockBtn(t, '바꾸는 중…', () => fn('set_active', { id:u.id, active:on }));
+        await loadUsers(); closeOv(); render(); toast(on ? `${u.name} 계정을 다시 쓸 수 있어요` : `${u.name} 계정을 사용중지했어요 — 1시간 안에 모든 기기에서 끊깁니다`); break; }
+      case 'copyTemp': { try { await navigator.clipboard.writeText(t.dataset.t); toast('복사했어요'); } catch(err){ const r = document.createRange(); r.selectNodeContents($('#tmp-pw')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast('임시 비밀번호를 선택했어요 — 복사해 주세요'); } break; }
+      case 'rcDef': {
+        if (!isAdmin()) break;
+        const kind = t.dataset.kind, tb = kind === 'mail' ? 'mail_recipients' : 'sms_recipients';
+        const x = S[kind].find(y => y.id === t.dataset.id); const v = !x.is_default;
+        const { data, error } = await busy(sb.from(tb).update({ is_default:v }).eq('id', x.id).select());
+        if (error || !data || !data.length) throw new Error(error ? dbMsg(error) : '권한이 없습니다');
+        x.is_default = v; t.setAttribute('aria-checked', v); break; }
+      case 'rcDel': {
+        if (!armed(t, '정말 삭제')) break;
+        const kind = t.dataset.kind, tb = kind === 'mail' ? 'mail_recipients' : 'sms_recipients';
+        const { data, error } = await busy(sb.from(tb).delete().eq('id', t.dataset.id).select());
+        if (error || !data || !data.length) throw new Error(error ? dbMsg(error) : '권한이 없습니다');
+        await loadRcpt(kind); render(); toast('수신자를 삭제했어요'); break; }
+    }
+  } catch(err){ toast(err.message || String(err)); }
+});
+function armed(btn, label){
+  if (btn.dataset.armed){ delete btn.dataset.armed; return true; }
+  const old = btn.innerHTML; btn.dataset.armed = 1; btn.classList.add('danger','armed'); btn.textContent = label;
+  setTimeout(() => { if (btn.isConnected && btn.dataset.armed){ delete btn.dataset.armed; btn.classList.remove('armed'); btn.innerHTML = old; } }, 3500);
+  return false;
+}
+
+document.addEventListener('submit', async e => {
+  const f = e.target.closest('[data-form]'); if (!f) return; e.preventDefault();
+  const k = f.dataset.form, btn = f.querySelector('button[type=submit]') || $(`button[form="${f.id}"]`);
+  const err = (id, m) => { const el = $('#'+id); if (el) el.textContent = m; };
+  try {
+    if (k === 'login'){
+      const id = $('#lg-id').value.trim().toLowerCase(), pw = $('#lg-pw').value;
+      if (!id || !pw) return err('lg-err', '아이디와 비밀번호를 입력하세요');
+      if (!/^[a-z0-9]{3,20}$/.test(id)) return err('lg-err', '아이디는 영문 소문자·숫자입니다');
+      await lockBtn(btn, '확인 중…', async () => {
+        const { error } = await sb.auth.signInWithPassword({ email:`${id}@${DOMAIN}`, password:pw });
+        if (error){
+          const m = error.message || '';
+          err('lg-err', /banned/i.test(m) ? '사용이 중지된 계정입니다. 관리자에게 문의하세요'
+            : /rate|too many/i.test(m) ? '시도가 너무 많아요. 잠시 뒤 다시 해 주세요'
+            : /Invalid login|invalid_credentials/i.test(m) ? '아이디 또는 비밀번호가 맞지 않습니다' : dbMsg(error));
+          $('#lg-pw').value = ''; $('#lg-pw').focus(); return;
+        }
+        store.set('note-last-id', id); S.err = '';
+        await afterPassword();
+      });
+    }
+    if (k === 'otp'){
+      const code = $$('.otp input').map(x => x.value).join('');
+      if (!/^\d{6}$/.test(code)) return;
+      await lockBtn(btn, '확인 중…', async () => {
+        const { error } = await sb.auth.mfa.challengeAndVerify({ factorId:S.factorId, code });
+        if (error){ err('otp-err', /invalid|expired/i.test(error.message||'') ? '숫자가 맞지 않아요. 앱에 표시된 지금 숫자를 입력하세요' : dbMsg(error)); $$('.otp input').forEach(x => x.value = ''); $('#otp0').focus(); $('#otp-ok').disabled = true; return; }
+        await loadMe();
+      });
+    }
+    if (k === 'enroll'){
+      const code = $('#en-code').value.trim();
+      if (!/^\d{6}$/.test(code)) return err('en-err', '앱에 표시된 6자리 숫자를 입력하세요');
+      await lockBtn(btn, '확인 중…', async () => {
+        const { error } = await sb.auth.mfa.challengeAndVerify({ factorId:S.enroll.id, code });
+        if (error){ err('en-err', '숫자가 맞지 않아요. QR 을 다시 스캔했는지, 휴대폰 시간이 맞는지 확인하세요'); $('#en-code').select(); return; }
+        S.enroll = null; await loadMe(); toast('인증 앱을 등록했어요. 다음 로그인부터 6자리를 묻습니다');
+      });
+    }
+    if (k === 'reenroll'){
+      const code = $('#re-code').value.trim();
+      if (!/^\d{6}$/.test(code)) return err('re-err', '앱에 표시된 6자리 숫자를 입력하세요');
+      await lockBtn(btn, '확인 중…', async () => {
+        const { error } = await sb.auth.mfa.challengeAndVerify({ factorId:S.reEnroll.id, code });
+        if (error) return err('re-err', '숫자가 맞지 않아요. 새 휴대폰으로 QR 을 스캔했는지 확인하세요');
+        const newId = S.reEnroll.id; S.reEnroll = null;
+        for (const old of S.factors.filter(x => x.id !== newId)) await sb.auth.mfa.unenroll({ factorId:old.id });
+        const { data } = await sb.auth.mfa.listFactors(); S.factors = (data && data.totp || []).filter(x => x.status === 'verified');
+        render(); toast('새 휴대폰으로 등록했어요. 예전 휴대폰의 숫자는 이제 쓸 수 없습니다');
+      });
+    }
+    if (k === 'forcepw' || k === 'pw'){
+      const p = k === 'forcepw' ? ['fp0','fp1','fp2','fp-err'] : ['pw0','pw1','pw2','pw-err'];
+      const a = $('#'+p[0]).value, b = $('#'+p[1]).value, c = $('#'+p[2]).value;
+      if (!a) return err(p[3], k === 'forcepw' ? '임시 비밀번호를 입력하세요' : '현재 비밀번호를 입력하세요');
+      if (!pwOk(b)) return err(p[3], '새 비밀번호는 8자 이상, 영문과 숫자를 섞어 주세요');
+      if (b !== c) return err(p[3], '새 비밀번호 두 칸이 서로 달라요');
+      if (a === b) return err(p[3], '지금과 다른 비밀번호를 쓰세요');
+      await lockBtn(btn, '바꾸는 중…', async () => {
+        try { await fn('change_password', { current:a, next:b }); }
+        catch(e2){ return err(p[3], e2.message); }
+        if (k === 'forcepw'){ S.me.must_change_pw = false; S.screen = 'app'; render(); preload(); toast('비밀번호를 바꿨어요. 이제 note 를 쓸 수 있습니다'); }
+        else { f.reset(); err(p[3], ''); toast('비밀번호를 바꿨어요. 다른 기기에서는 다시 로그인해야 합니다'); }
+      });
+    }
+    if (k === 'phone'){
+      const v = telNorm($('#me-phone').value);
+      if (v === null) return toast('휴대폰 번호를 확인하세요 (예: 010-1234-5678)');
+      await lockBtn(btn, '저장 중…', async () => {
+        const { data, error } = await sb.from('profiles').update({ phone:v }).eq('id', S.me.id).select('phone');
+        if (error || !data || !data.length) throw new Error(error ? dbMsg(error) : '저장하지 못했습니다');
+        S.me.phone = v; $('#me-phone').value = v; toast('저장했어요');
+      });
+    }
+    if (k === 'sender'){
+      const v = $('#snd-name').value.trim();
+      if (!v) return toast('보낸 사람 이름을 입력하세요');
+      await lockBtn(btn, '저장 중…', async () => {
+        const { data, error } = await sb.from('app_settings').update({ value:v, updated_by:S.me.id }).eq('key','sender_name').select();
+        if (error || !data || !data.length) throw new Error(error ? dbMsg(error) : '권한이 없습니다');
+        S.settings.sender_name = v; render(); toast('보낸 사람 이름을 저장했어요');
+      });
+    }
+    if (k === 'add-mail' || k === 'add-sms'){
+      const kind = k.slice(4), nm = $(`#${kind}-nm`).value.trim(), dp = $(`#${kind}-dp`).value.trim(); let ad = $(`#${kind}-ad`).value.trim();
+      if (!nm) return err(`${kind}-err`, '이름을 입력하세요');
+      if (kind === 'mail'){ ad = ad.toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ad)) return err(`${kind}-err`, '이메일 주소 형식을 확인하세요 (예: name@company.co.kr)'); }
+      else { ad = telNorm(ad); if (!ad) return err(`${kind}-err`, '휴대폰 번호를 확인하세요 (예: 010-1234-5678)'); }
+      await lockBtn(btn, '추가 중…', async () => {
+        const row = kind === 'mail' ? { name:nm, dept:dp, email:ad } : { name:nm, dept:dp, phone:ad };
+        const { error } = await sb.from(kind === 'mail' ? 'mail_recipients' : 'sms_recipients').insert(row);
+        if (error) return err(`${kind}-err`, error.code === '23505' ? '이미 목록에 있는 주소예요' : dbMsg(error));
+        await loadRcpt(kind); render(); toast(`${nm}님을 추가했어요`);
+      });
+    }
+    if (k === 'acct'){
+      const id = f.dataset.id, v = n => $('#a-'+n).value.trim();
+      const role = $('#a-role').dataset.v === 'admin' ? 'admin' : 'member';
+      if (!v('name')) return err('a-err', '이름을 입력하세요');
+      const ph = telNorm(v('phone')); if (ph === null) return err('a-err', '휴대폰 번호를 확인하세요 (예: 010-1234-5678)');
+      const body = { name:v('name'), dept:v('dept'), title:v('title'), phone:ph, role };
+      if (!id){
+        const login = v('login').toLowerCase();
+        if (!/^[a-z0-9]{3,20}$/.test(login)) return err('a-err', '아이디는 영문 소문자·숫자 3~20자로 입력하세요');
+        await lockBtn(btn, '만드는 중…', async () => {
+          let r; try { r = await fn('create', Object.assign({ login_id:login }, body)); } catch(e2){ return err('a-err', e2.message); }
+          await loadUsers(); render(); showTemp('계정을 만들었어요', body.name, login, r.temp_password);
+        });
+      } else {
+        await lockBtn(btn, '저장 중…', async () => {
+          try { await fn('update', Object.assign({ id }, body)); } catch(e2){ return err('a-err', e2.message); }
+          if (id === S.me.id){ Object.assign(S.me, body); }
+          await loadUsers(); closeOv(); render(); toast('저장했어요');
+        });
+      }
+    }
+  } catch(ex){ toast(ex.message || String(ex)); }
+});
+
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.matches('.otp input')){
+    t.value = t.value.replace(/\D/g,'').slice(-1);
+    const i = +t.id.slice(3); if (t.value && i < 5) $('#otp'+(i+1)).focus();
+    const all = $$('.otp input').every(x => x.value);
+    $('#otp-ok').disabled = !all;
+    if (all) $('#otp-ok').click();
+  }
+  if (t.id === 'en-code' || t.id === 're-code') t.value = t.value.replace(/\D/g,'').slice(0,6);
+});
+document.addEventListener('keydown', e => {
+  const t = e.target;
+  if (t.matches('.otp input') && e.key === 'Backspace' && !t.value){ const i = +t.id.slice(3); if (i > 0){ const p = $('#otp'+(i-1)); p.value = ''; p.focus(); } }
+  if (e.key === 'Escape' && $('#ov').innerHTML) closeOv();
+});
+document.addEventListener('paste', e => {
+  const t = e.target; if (!t.matches('.otp input')) return;
+  const d = (e.clipboardData.getData('text') || '').replace(/\D/g,'').slice(0,6); if (!d) return;
+  e.preventDefault(); d.split('').forEach((c,i) => { const x = $('#otp'+i); if (x) x.value = c; });
+  $('#otp-ok').disabled = d.length < 6; if (d.length === 6) $('#otp-ok').click();
+});
+
+if (sb){
+  sb.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT' && S.screen !== 'login') toLogin('로그아웃되었습니다. 다시 로그인하세요'); });
+}
+render();
+boot().catch(e => toLogin(dbMsg(e)));
+})();
+
+</script>
+</body>
+</html>

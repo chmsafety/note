@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
 <style>
 
+
 :root{
   --ground:#EDF1EE; --surface:#FFFFFF; --surface-2:#F4F7F5; --surface-3:#E4EBE6;
   --ink:#16201C; --ink-2:#47544F; --ink-3:#77857F; --line:#D8DFDC; --line-2:#C2CCC7;
@@ -44,6 +45,7 @@
   --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 28px rgba(0,0,0,.4);
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{margin:0;background:var(--ground);color:var(--ink);font:14px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
 button,input,textarea,select{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--accent-ink);outline-offset:2px}
@@ -463,6 +465,24 @@ details[open] summary{margin-bottom:8px}
 .dlg .secret{display:inline-block;font-size:16px}
 @container app (max-width:760px){ .ver{display:none} }
 
+
+/* ── 인쇄 · PDF 저장 (A4 1장) ── */
+@page{ size:A4; margin:0 }
+@media print{
+  html,body{ background:#fff!important; margin:0!important }
+  .app{ position:static!important; height:auto!important; overflow:visible!important; background:#fff!important; container-type:normal!important }
+  #view{ height:auto!important }
+  #busy,#ov,.toast,.side,.tabbar,.mtop,.ph,#rbanner,.eseg,.pane-form,.sticky-act,.pane-prev .cap,.filters,.panel{ display:none!important }
+  .shell{ display:block!important; height:auto!important }
+  .main{ overflow:visible!important; display:block!important }
+  .page{ padding:0!important; max-width:none!important; gap:0!important; display:block!important }
+  .editor{ display:block!important; gap:0!important }
+  .editor .pane-prev{ display:block!important; position:static!important; left:auto!important; top:auto!important; width:auto!important; visibility:visible!important; gap:0!important }
+  .a4wrap{ overflow:visible!important; position:static!important; width:794px!important; height:1123px!important }
+  .a4{ position:static!important; transform:none!important; box-shadow:none!important; margin:0!important; page-break-inside:avoid }
+  .a4 .clip.over{ box-shadow:none!important }
+}
+
 </style>
 </head>
 <body>
@@ -484,12 +504,13 @@ window.NOTE_CONFIG = {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+
 /* ════════════════════════════════════════════════════════════════
    note 앱 — 1단계 (로그인 · 2단계 인증 · 설정)
    ════════════════════════════════════════════════════════════════ */
 (function(){
 'use strict';
-const VERSION = '1단계 · 2026-09-11';
+const VERSION = '2단계 · 2026-09-12';
 
 /* ───────── 유틸 ───────── */
 const $ = (s, el=document) => el.querySelector(s);
@@ -505,6 +526,16 @@ const fmtDate = iso => { if (!iso) return '—'; const d = new Date(iso); return
 const telNorm = v => { const d = String(v||'').replace(/\D/g,''); if (!d) return ''; if (!/^01\d{8,9}$/.test(d)) return null;
   return d.length === 11 ? `${d.slice(0,3)}-${d.slice(3,7)}-${d.slice(7)}` : `${d.slice(0,3)}-${d.slice(3,6)}-${d.slice(6)}`; };
 const pwOk = p => p.length >= 8 && /[A-Za-z]/.test(p) && /\d/.test(p);
+const dObj = s => { const [y,m,d] = String(s||'').split('-').map(Number); return new Date(y, (m||1)-1, d||1); };
+const isoOf = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const TODAY = () => isoOf(new Date());
+const fmtRow = s => { const d = dObj(s); return `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())} ${WD[d.getDay()]}`; };
+const fmtMD  = s => { const d = dObj(s); return `${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]})`; };
+const fmtLongIso = s => { const d = dObj(s); return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 (${WD[d.getDay()]})`; };
+const SLOTS = ['08','09','10','11','12','13','14','15','16','17','18','19','20','21'];
+const slotLabel = h => `${h}:00 ~ ${pad(+h+1)}:00`;
+const emptySched = () => Array(14).fill('');
+const schedAt = (r, i) => (r.schedule && r.schedule[i]) || '';
 const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e){} } };
 
 const ICON = {
@@ -525,6 +556,13 @@ const ICON = {
   key:'<circle cx="8" cy="15" r="4"/><path d="m11 12 8.5-8.5M16 7l2.5 2.5"/>',
   clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
   copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
+  send:'<path d="M20.5 3.5 3.5 10.5l7 3 3 7z"/><path d="m10.5 13.5 4-4"/>',
+  back:'<path d="M14.5 5.5 8 12l6.5 6.5"/>',
+  pin:'<path d="M12 21s-6.5-6.2-6.5-11a6.5 6.5 0 0 1 13 0c0 4.8-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
+  user:'<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>',
+  list:'<path d="M9 6.5h11M9 12h11M9 17.5h11"/><path d="M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"/>',
+  eye:'<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+  print:'<path d="M7 9V3.5h10V9"/><rect x="3.5" y="9" width="17" height="7.5" rx="1.5"/><path d="M7 14h10v6.5H7z"/>',
 };
 const ic = (n, cls='') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]||''}</svg>`;
 
@@ -533,6 +571,8 @@ const S = {
   screen:'loading', route:'home', stab:'me',
   me:null, email:'', factorId:null, enroll:null, reEnroll:null, factors:[],
   users:null, mail:null, sms:null, settings:{},
+  reports:null, rid:null, rcur:null, pane:'form', saved:'',
+  f:{ rMonth:'all', rStatus:'all', rAuthor:'all' },
   err:'',
 };
 const isAdmin = () => S.me && S.me.role === 'admin' && S.me.active;
@@ -623,10 +663,12 @@ async function loadMe(){
   preload();
 }
 async function preload(){
-  await Promise.all([loadSettings(), loadRcpt('mail'), loadRcpt('sms'), isAdmin() ? loadUsers() : null]);
+  await Promise.all([loadSettings(), loadRcpt('mail'), loadRcpt('sms'), loadReports(), isAdmin() ? loadUsers() : null]);
   if (S.screen === 'app') render();
 }
-function toLogin(msg){ S.screen = 'login'; S.err = msg || ''; S.me = null; S.users = S.mail = S.sms = null; S.route = 'home'; S.stab = 'me'; S.reEnroll = null; S.factors = []; closeOv(); render(); }
+function toLogin(msg){ clearTimeout(saveT); S.screen = 'login'; S.err = msg || ''; S.me = null; S.users = S.mail = S.sms = S.reports = null;
+  S.route = 'home'; S.stab = 'me'; S.reEnroll = null; S.factors = []; S.rcur = null; S.rid = null; S.pane = 'form'; S.saved = '';
+  S.f = { rMonth:'all', rStatus:'all', rAuthor:'all' }; closeOv(); render(); }
 async function logout(){ try { await sb.auth.signOut({ scope:'local' }); } catch(e){} toLogin(''); }
 
 async function loadSettings(){ const { data } = await sb.from('app_settings').select('key,value'); S.settings = Object.fromEntries((data||[]).map(r => [r.key, r.value])); }
@@ -637,6 +679,81 @@ async function loadRcpt(kind){
   S[kind] = data || [];
 }
 async function loadUsers(){ try { S.users = (await fn('list')).users; } catch(e){ S.users = []; toast(e.message); } }
+
+/* ───────── 보고서 : 데이터 ───────── */
+const REP_COLS = 'id,author,author_name,author_dept,author_title,report_date,place,main_task,attendees,schedule,body,etc,status,sent_at,created_at,updated_at';
+
+async function loadReports(){
+  const { data, error } = await sb.from('reports').select(REP_COLS)
+    .order('report_date', { ascending:false }).order('created_at', { ascending:false }).limit(400);
+  if (error){ toast(dbMsg(error)); if (!S.reports) S.reports = []; return; }
+  S.reports = (data || []).map(fixRep);
+}
+function fixRep(r){
+  let s = r.schedule;
+  if (!Array.isArray(s)) s = emptySched();
+  if (s.length !== 14) s = emptySched().map((_,i) => String(s[i] ?? ''));
+  return Object.assign({}, r, { schedule: s.map(x => String(x ?? '')) });
+}
+const repById = id => (S.reports || []).find(r => r.id === id);
+const repMine = r => !!r && r.author === S.me.id;
+const authorOf = r => `${r.author_name || ''} ${r.author_title || ''}`.trim() || '(이름 없음)';
+
+function newReport(date){
+  const u = S.me;
+  return { id:null, author:u.id, author_name:u.name || '', author_dept:u.dept || '', author_title:u.title || '',
+    report_date: date || TODAY(), place:'', main_task:'', attendees:'',
+    schedule: emptySched(), body:'', etc:'', status:'draft', sent_at:null };
+}
+
+function repPayload(r){
+  return { report_date:r.report_date, place:(r.place||'').trim(), main_task:(r.main_task||'').trim(),
+    attendees:(r.attendees||'').trim(), schedule:r.schedule.map(x => String(x||'').slice(0,120)),
+    body:r.body || '', etc:r.etc || '' };
+}
+
+let saveT = null, saving = false, savePend = false;
+function markSaving(txt){ S.saved = txt; const el = $('#saved'); if (el) el.textContent = txt; }
+function queueSave(){
+  markSaving('저장할 내용이 있어요');
+  clearTimeout(saveT);
+  saveT = setTimeout(() => { saveReport().catch(e => toast(e.message || String(e))); }, 1200);
+}
+async function saveReport(){
+  const r = S.rcur;
+  if (!r || !repMine(r)) return null;
+  if (saving){ savePend = true; return null; }
+  if (!r.report_date){ markSaving('일자를 정해 주세요'); return null; }
+  saving = true; markSaving('저장 중…');
+  try {
+    const row = repPayload(r);
+    let out;
+    if (r.id){
+      if (r.status === 'sent') row.status = 'edited';
+      const { data, error } = await sb.from('reports').update(row).eq('id', r.id).select(REP_COLS).maybeSingle();
+      if (error) throw new Error(dbMsg(error));
+      if (!data) throw new Error('저장하지 못했습니다. 다시 로그인해 주세요');
+      out = fixRep(data);
+    } else {
+      Object.assign(row, { author:S.me.id, author_name:S.me.name || '', author_dept:S.me.dept || '', author_title:S.me.title || '' });
+      const { data, error } = await sb.from('reports').insert(row).select(REP_COLS).maybeSingle();
+      if (error) throw new Error(dbMsg(error));
+      if (!data) throw new Error('저장하지 못했습니다. 다시 로그인해 주세요');
+      out = fixRep(data);
+      r.id = out.id; S.rid = out.id;
+    }
+    r.status = out.status; r.sent_at = out.sent_at; r.updated_at = out.updated_at;
+    const i = (S.reports || []).findIndex(x => x.id === out.id);
+    if (i >= 0) S.reports[i] = Object.assign({}, out, repPayload(r));
+    else if (S.reports) S.reports.unshift(Object.assign({}, out, repPayload(r)));
+    markSaving('저장됨 ' + fmtDT(new Date().toISOString()));
+    return out;
+  } finally {
+    saving = false;
+    if (savePend){ savePend = false; queueSave(); }
+  }
+}
+async function flushSave(){ clearTimeout(saveT); if (S.rcur && repMine(S.rcur)) await saveReport(); }
 
 /* ───────── 렌더 ───────── */
 function render(){
@@ -742,32 +859,206 @@ function shell(inner){
 }
 function viewRoute(){
   if (S.route === 'settings') return viewSettings();
-  if (S.route === 'reports') return viewSoon('현장활동보고서', '보고서 작성 · A4 미리보기 · 목록은 2단계에서 열립니다.', '보고하기(메일 PDF · 문자)는 4단계');
+  if (S.route === 'report') return viewReportEdit();
+  if (S.route === 'reports') return viewReports();
   if (S.route === 'meetings') return viewSoon('메모', '메모 · 사진 첨부 · 할 일은 3단계에서 열립니다.', '사진은 비공개 저장소에 보관');
   return viewHome();
 }
+/* ───────── 보고서 : 목록 ───────── */
+function reportPill(r){
+  if (!r) return `<span class="pill none">미작성</span>`;
+  if (r.status === 'sent') return `<span class="pill sent">보고 완료</span>`;
+  if (r.status === 'edited') return `<span class="pill draft">보고 후 수정됨</span>`;
+  return `<span class="pill draft">작성 중</span>`;
+}
+function sendInfo(r){
+  if (!r || !r.sent_at) return '<span class="hint">—</span>';
+  return `${fmtDT(r.sent_at)} 보고`;
+}
+function viewReports(){
+  if (S.reports === null) return `<div class="page"><div class="ph"><div><h1>현장활동보고서</h1></div></div><section class="panel empty">불러오는 중…</section></div>`;
+  const f = S.f, admin = isAdmin();
+  const all = S.reports;
+  const months = [...new Set(all.map(r => r.report_date.slice(0,7)))].sort().reverse();
+  const authors = [...new Map(all.filter(r => r.author !== S.me.id).map(r => [r.author, r.author_name || '(이름 없음)'])).entries()];
+  let list = all.slice();
+  if (f.rMonth !== 'all') list = list.filter(r => r.report_date.startsWith(f.rMonth));
+  if (f.rStatus === 'sent') list = list.filter(r => r.status !== 'draft');
+  if (f.rStatus === 'draft') list = list.filter(r => r.status === 'draft');
+  if (admin && f.rAuthor === 'me') list = list.filter(r => r.author === S.me.id);
+  else if (admin && f.rAuthor !== 'all') list = list.filter(r => r.author === f.rAuthor);
+
+  return `<div class="page">
+    <div class="ph"><div><h1>현장활동보고서</h1><div class="sub">${admin ? '전체 직원의 보고서 — 다른 사람 것은 읽기만 할 수 있어요' : '내가 쓴 보고서'}</div></div>
+      <div class="acts"><button class="btn primary" data-act="repNew">${ic('plus')}새 보고서</button></div></div>
+    <div class="filters">
+      <label class="sr" for="f-month">월</label>
+      <select class="in" id="f-month" data-filter="rMonth"><option value="all">전체 기간</option>${months.map(m => `<option value="${m}" ${f.rMonth===m?'selected':''}>${m.slice(0,4)}년 ${+m.slice(5)}월</option>`).join('')}</select>
+      <div class="seg" role="group" aria-label="상태">${[['all','전체'],['draft','작성 중'],['sent','보고 완료']].map(([v,l]) => `<button data-act="rFilter" data-k="rStatus" data-v="${v}" aria-pressed="${f.rStatus===v}">${l}</button>`).join('')}</div>
+      ${admin ? `<label class="sr" for="f-au">작성자</label><select class="in" id="f-au" data-filter="rAuthor"><option value="all" ${f.rAuthor==='all'?'selected':''}>작성자 전체</option><option value="me" ${f.rAuthor==='me'?'selected':''}>나</option>${authors.map(([id,nm]) => `<option value="${esc(id)}" ${f.rAuthor===id?'selected':''}>${esc(nm)}</option>`).join('')}</select>` : ''}
+    </div>
+    <section class="panel rlist ${admin?'':'noau'}">
+      <div class="rhead"><span class="d">일자</span><span class="main-c">장소 · 주요업무</span>${admin?'<span class="au">작성자</span>':''}<span class="st">상태</span><span class="snd">마지막 보고</span></div>
+      ${list.length ? list.map(r => `<button class="rrow" data-act="repOpen" data-id="${esc(r.id)}">
+        <span class="d">${fmtRow(r.report_date)}</span>
+        <span class="main-c"><span class="pl">${esc(r.place || '장소 미입력')}</span><span class="tk">${esc(r.main_task || '주요업무 미입력')}</span></span>
+        ${admin?`<span class="au">${esc(r.author_name || '—')}</span>`:''}
+        <span class="st">${reportPill(r)}</span>
+        <span class="snd">${sendInfo(r)}</span></button>`).join('')
+      : `<div class="empty">${all.length ? '조건에 맞는 보고서가 없습니다' : '아직 보고서가 없습니다. <b>새 보고서</b>를 눌러 시작하세요.'}</div>`}
+    </section>
+  </div>`;
+}
+
+/* ───────── 보고서 : A4 ───────── */
+function colg(){ return `<col style="width:7.14%">` + '<col style="width:10.318%">'.repeat(9); }
+function a4HTML(r){
+  const who = `${esc(r.author_name || '')} ${esc(r.author_title || '')}`.trim();
+  return `<div class="a4" id="a4">
+    <div class="ttl">현장 활동 보고서</div><div class="gap"></div>
+    <div class="sh">1. 개요</div>
+    <table><colgroup>${colg()}</colgroup>
+      <tr class="r1"><th colspan="2">일자</th><td colspan="3">${r.report_date ? esc(r.report_date.replace(/-/g,'. ')) : ''}</td><th colspan="2">장소</th><td colspan="3">${esc(r.place)}</td></tr>
+      <tr class="r1"><th colspan="2">작성자</th><td colspan="3">${who}</td><th colspan="2">주요업무</th><td colspan="3">${esc(r.main_task)}</td></tr>
+      <tr class="r1"><th colspan="2">참석자</th><td colspan="8" class="l">${esc(r.attendees)}</td></tr>
+    </table>
+    <div class="sh b">2. 업무 일정</div>
+    <table><colgroup>${colg()}</colgroup>
+      ${SLOTS.map((h,i) => `<tr class="rs"><th colspan="2">${slotLabel(h)}</th><td colspan="8"><div class="c">${esc(schedAt(r,i))}</div></td></tr>`).join('')}
+    </table>
+    <div class="sh b">3. 주요 내용</div>
+    <table><colgroup>${colg()}</colgroup>
+      <tr class="rb"><th colspan="2">주요 업무/결과</th><td colspan="8"><div class="clip" data-k="body">${esc(r.body)}</div></td></tr>
+      <tr class="re"><th colspan="2">기타\n(특이사항 및 공유 사항)</th><td colspan="8"><div class="clip" data-k="etc">${esc(r.etc)}</div></td></tr>
+    </table>
+  </div>`;
+}
+function fitA4(){
+  $$('#view .a4wrap, #ov .a4wrap').forEach(w => {
+    const a = $('.a4', w); if (!a) return;
+    const s = Math.min(1, (w.clientWidth || 600) / 794);
+    a.style.transform = `scale(${s})`; w.style.height = (1123*s) + 'px';
+  });
+}
+function measureA4(){
+  const res = {};
+  $$('#view .a4 .clip').forEach(el => { const o = el.scrollHeight > el.clientHeight + 1; el.classList.toggle('over', o); res[el.dataset.k] = o; });
+  ['body','etc'].forEach(k => { const w = $('#warn-'+k); if (w) w.hidden = !res[k]; });
+}
+function refreshPreview(){
+  const r = S.rcur, w = $('#view .a4wrap'); if (!r || !w) return;
+  w.innerHTML = a4HTML(r); fitA4(); measureA4();
+}
+
+/* ───────── 보고서 : 작성 ───────── */
+function repBanner(r, mine){
+  if (!mine) return `<div class="banner ro">${ic('eye')}<span><b>${esc(authorOf(r))}</b>의 보고서입니다. 관리자는 읽기만 할 수 있어요.</span></div>`;
+  if (r.status === 'edited') return `<div class="banner dirty">${ic('alert')}<span><b>보고한 뒤 내용이 바뀌었어요.</b> 수신자에게는 이전 내용이 가 있습니다. 다시 보고하면 새 PDF 가 발송됩니다.</span></div>`;
+  if (r.status === 'sent') return `<div class="banner">${ic('check')}<span><b>보고 완료</b> · ${sendInfo(r)}. 고친 뒤 다시 보낼 수 있어요.</span></div>`;
+  return '';
+}
+function viewReportEdit(){
+  const r = S.rcur;
+  if (!r) return `<div class="page"><div class="empty">보고서를 찾을 수 없습니다</div></div>`;
+  const mine = repMine(r), dis = mine ? '' : 'disabled';
+  const filled = r.schedule.filter(x => x.trim()).length;
+  const nowH = r.report_date === TODAY() ? pad(new Date().getHours()) : null;
+  const sendBtn = `<button class="btn primary" data-act="repSend" title="4단계에서 열립니다">${ic('send')}보고하기</button>`;
+  return `<div class="page">
+    <div class="ph"><div><button class="back" data-act="go" data-to="reports">${ic('back')}보고서 목록</button>
+      <h1>현장활동보고서 · ${fmtLongIso(r.report_date)}</h1>
+      <div class="sub">${esc(authorOf(r))} · ${mine ? `<span class="saved" id="saved">${esc(S.saved || '자동 저장됩니다')}</span>` : '읽기 전용'}</div></div>
+      <div class="acts hide-m">${mine && r.status === 'draft' ? `<button class="btn quiet" data-act="repDel">${ic('trash')}삭제</button>` : ''}
+        <button class="btn" data-act="repPrint">${ic('print')}인쇄 · PDF</button>${mine ? sendBtn : ''}</div>
+    </div>
+    <div id="rbanner">${repBanner(r, mine)}</div>
+    <div class="seg eseg" role="tablist" aria-label="보기 전환"><button data-act="pane" data-v="form" aria-pressed="${S.pane==='form'}">${ic('doc')}작성</button><button data-act="pane" data-v="prev" aria-pressed="${S.pane==='prev'}">${ic('eye')}A4 미리보기</button></div>
+    <div class="editor" data-pane="${S.pane}">
+      <div class="pane-form">
+        <section class="sec"><div class="sec-h"><h3>1. 개요</h3></div>
+          <div class="fgrid">
+            <div class="field"><label for="r-date">일자</label><input class="in" type="date" id="r-date" data-rf="report_date" value="${esc(r.report_date)}" ${dis}></div>
+            <div class="field"><label for="r-place" class="req">장소</label><input class="in" id="r-place" data-rf="place" value="${esc(r.place)}" maxlength="120" placeholder="예: 판교 테크원" ${dis}></div>
+            <div class="field"><label for="r-au">작성자</label><input class="in" id="r-au" value="${esc(authorOf(r))}" readonly></div>
+            <div class="field"><label for="r-task" class="req">주요업무</label><input class="in" id="r-task" data-rf="main_task" value="${esc(r.main_task)}" maxlength="200" placeholder="예: 정기 설비 점검" ${dis}></div>
+            <div class="field full"><label for="r-att">참석자</label><input class="in" id="r-att" data-rf="attendees" value="${esc(r.attendees)}" maxlength="300" placeholder="이름 · 직책, 쉼표로 구분" ${dis}></div>
+          </div></section>
+        <section class="sec"><div class="sec-h"><h3>2. 업무 일정</h3><span class="hint" id="filled">${filled}/14칸</span></div>
+          <div class="slots">${SLOTS.map((h,i) => `<div class="slot ${h===nowH?'now':''}"><label class="t" for="s-${h}">${slotLabel(h)}</label><input id="s-${h}" data-rf="s${i}" value="${esc(schedAt(r,i))}" maxlength="120" ${dis}></div>`).join('')}</div></section>
+        <section class="sec"><div class="sec-h"><h3>3. 주요 내용</h3></div>
+          <div class="field"><label for="r-body" class="req">주요 업무/결과</label><textarea class="in" id="r-body" rows="12" data-rf="body" maxlength="4000" ${dis}>${esc(r.body)}</textarea>
+            <div class="warn" id="warn-body" hidden>${ic('alert')}<span>A4 칸을 넘었어요. 넘친 부분은 PDF 에서 잘리니 줄이거나 ‘기타’로 옮겨 주세요.</span></div></div>
+          <div class="field"><label for="r-etc">기타 (특이사항 및 공유 사항)</label><textarea class="in" id="r-etc" rows="3" data-rf="etc" maxlength="2000" ${dis}>${esc(r.etc)}</textarea>
+            <div class="warn" id="warn-etc" hidden>${ic('alert')}<span>기타 칸을 넘었어요. 넘친 부분은 PDF 에서 잘립니다.</span></div></div>
+        </section>
+        <div class="sticky-act"><button class="btn" data-act="pane" data-v="prev">${ic('eye')}미리보기</button>${mine ? sendBtn : `<button class="btn" data-act="repPrint">${ic('print')}인쇄</button>`}</div>
+      </div>
+      <div class="pane-prev">
+        <div class="cap"><span>메일에 첨부되는 PDF 와 같은 모양 · A4 1장</span><span class="mono">현장활동보고서_${esc(r.report_date.replace(/-/g,''))}_${esc(r.author_name||'')}.pdf</span></div>
+        <div class="a4wrap">${a4HTML(r)}</div>
+        <div class="sticky-act"><button class="btn" data-act="pane" data-v="form">${ic('doc')}작성으로</button><button class="btn" data-act="repPrint">${ic('print')}인쇄 · PDF</button></div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function viewSoon(t, a, b){
   return `<div class="page"><div class="ph"><div><h1>${t}</h1><div class="sub">준비 중</div></div></div>
     <section class="panel empty" style="padding:40px 20px"><b style="color:var(--ink);font-size:15px">${a}</b><br><span class="hint">${b}</span></section></div>`;
 }
 function viewHome(){
-  const u = S.me, now = new Date();
-  const n = v => v == null ? '…' : v.length;
+  const u = S.me, now = new Date(), today = TODAY();
+  const reps = S.reports;
+  const mineToday = reps && reps.find(r => r.author === u.id && r.report_date === today);
+  const recent = reps ? reps.filter(r => r.author === u.id && r.report_date !== today).slice(0, 4) : [];
+  const nowH = pad(now.getHours()), cur = SLOTS.indexOf(nowH);
+
+  let todayCard;
+  if (reps === null){
+    todayCard = `<section class="panel today"><div class="top"><div><div class="eyebrow">오늘의 현장활동보고서</div><h2>불러오는 중…</h2></div></div></section>`;
+  } else if (mineToday){
+    const r = mineToday, filled = r.schedule.filter(x => x.trim()).length;
+    todayCard = `<section class="panel today">
+      <div class="top"><div><div class="eyebrow">오늘의 현장활동보고서</div><h2>${esc(r.main_task || '주요업무 미입력')}</h2></div>${reportPill(r)}</div>
+      <div class="meta"><span>${ic('pin')}${esc(r.place || '장소 미입력')}</span><span>${ic('user')}${esc(r.attendees || '참석자 없음')}</span><span>${ic('list')}업무 일정 ${filled}/14칸</span></div>
+      <div><div class="ruler" aria-label="업무 일정 채움 현황">${SLOTS.map((h,i) => `<i class="${r.schedule[i].trim()?'on':''} ${i===cur?'now':''}" title="${slotLabel(h)} ${esc(r.schedule[i])}"></i>`).join('')}</div>
+        <div class="ruler-l"><span>08</span><span></span><span></span><span></span><span>12</span><span></span><span></span><span></span><span>16</span><span></span><span></span><span></span><span>20</span><span style="text-align:right">22</span></div></div>
+      ${cur >= 0 ? `<div class="nowline"><span class="mono">지금 ${slotLabel(nowH)}</span><span>${r.schedule[cur].trim() ? esc(r.schedule[cur]) : '<span class="hint">이 시간대가 비어 있어요</span>'}</span></div>` : ''}
+      <div class="acts"><button class="btn primary" data-act="repOpen" data-id="${esc(r.id)}">${ic('doc')}이어서 작성</button></div>
+    </section>`;
+  } else {
+    todayCard = `<section class="panel today"><div class="top"><div><div class="eyebrow">오늘의 현장활동보고서</div><h2>오늘 보고서를 아직 시작하지 않았어요</h2></div>${reportPill(null)}</div>
+      <p class="hint" style="margin:0">일자와 작성자는 자동으로 채워집니다. 현장에서 틈틈이 시간대별로 적어 두세요.</p>
+      <div class="acts"><button class="btn primary" data-act="repNew">${ic('plus')}보고서 작성 시작</button></div></section>`;
+  }
+
+  const recentCard = `<section class="panel"><div class="panel-h"><h2>최근 내 보고서</h2>${reps && reps.length ? `<button class="btn sm quiet" data-act="go" data-to="reports">전체 보기</button>` : ''}</div>
+    <div class="mini">${recent.length ? recent.map(r => `<button class="it" data-act="repOpen" data-id="${esc(r.id)}"><div class="tx"><b>${esc(r.place || '장소 미입력')} · ${esc(r.main_task || '주요업무 미입력')}</b><span>${fmtRow(r.report_date)}</span></div>${reportPill(r)}</button>`).join('')
+      : `<div class="empty">${reps === null ? '불러오는 중…' : '아직 지난 보고서가 없습니다'}</div>`}</div></section>`;
+
+  const teamCard = isAdmin() && reps ? (() => {
+    const todays = reps.filter(r => r.report_date === today);
+    const users = (S.users || []).filter(x => x.active);
+    if (!users.length) return '';
+    return `<section class="panel"><div class="panel-h"><h2>오늘 보고 현황</h2><span class="hint">${fmtMD(today)} 기준</span></div>
+      <div class="mini team">${users.map(x => { const rr = todays.find(y => y.author === x.id);
+        return `<div class="it" style="cursor:${rr?'pointer':'default'}" ${rr?`data-act="repOpen" data-id="${esc(rr.id)}"`:''}><div class="av">${esc((x.name||'?')[0])}</div><div class="tx"><b>${esc(x.name)} ${esc(x.title||'')}</b><span>${rr ? esc((rr.place||'장소 미입력')+' · '+(rr.main_task||'주요업무 미입력')) : esc(x.dept||'')}</span></div>${reportPill(rr)}</div>`; }).join('')}</div></section>`;
+  })() : '';
+
   const checks = [
     ['로그인 · 2단계 인증', true, '비밀번호 + 인증 앱으로 들어왔어요'],
-    ['직원 정보', true, `${u.login_id} · ${isAdmin()?'관리자':'직원'}`],
     ['메일 수신자', S.mail && S.mail.length > 0, S.mail ? `${S.mail.length}명` : '불러오는 중'],
     ['문자 수신자', S.sms && S.sms.length > 0, S.sms ? `${S.sms.length}명` : '불러오는 중'],
   ];
-  if (isAdmin()) checks.push(['계정', S.users && S.users.length > 1, S.users ? `${S.users.length}개 · 2단계 등록 ${S.users.filter(x => x.mfa).length}명` : '불러오는 중']);
+  const readyCard = `<section class="panel"><div class="panel-h"><h2>보고 준비</h2><span class="hint">${VERSION}</span></div>
+    <div class="mini">${checks.map(([t,ok,d]) => `<div class="it" style="cursor:default"><div class="ico-s ${ok?'ok':''}">${ic(ok?'check':'clock')}</div><div class="tx"><b>${t}</b><span>${esc(d)}</span></div></div>`).join('')}</div>
+    ${isAdmin() && !(S.mail && S.mail.length && S.sms && S.sms.length) ? `<div class="panel-b" style="border-top:1px solid var(--line)"><button class="btn sm" data-act="go" data-to="settings" data-tab="mail">${ic('plus')}수신자 등록하러 가기</button></div>` : ''}</section>`;
+
   return `<div class="page">
     <div class="ph"><div><h1>${fmtLong(now)}</h1><div class="sub">${esc(u.name)} ${esc(u.title)} · ${esc(u.dept)}</div></div></div>
     <div class="hgrid">
-      <section class="panel"><div class="panel-h"><h2>준비 상태</h2><span class="hint">${VERSION}</span></div>
-        <div class="mini">${checks.map(([t,ok,d]) => `<div class="it" style="cursor:default"><div class="ico-s ${ok?'ok':''}">${ic(ok?'check':'clock')}</div><div class="tx"><b>${t}</b><span>${esc(d)}</span></div></div>`).join('')}</div></section>
-      <section class="panel"><div class="panel-h"><h2>다음 단계</h2></div>
-        <div class="mini">${[['2단계','현장활동보고서 작성 · A4 미리보기 · 목록'],['3단계','메모 · 사진 첨부 · 할 일'],['4단계','보고하기 — Gmail PDF · 솔라피 문자 · 7일 링크'],['5단계','홈 화면 앱 설치(PWA) · 마무리']].map(([a,b]) => `<div class="it" style="cursor:default"><span class="pill plain">${a}</span><div class="tx"><span style="color:var(--ink-2);font-size:13px">${b}</span></div></div>`).join('')}</div>
-        ${isAdmin() ? `<div class="panel-b" style="border-top:1px solid var(--line)"><button class="btn sm" data-act="go" data-to="settings" data-tab="accounts">${ic('plus')}직원 계정 추가하러 가기</button></div>` : ''}</section>
+      <div class="stack">${todayCard}${teamCard}</div>
+      <div class="stack">${recentCard}${readyCard}</div>
     </div>
   </div>`;
 }
@@ -904,7 +1195,39 @@ document.addEventListener('click', async e => {
   if (a === 'ovBg'){ if (e.target === t) closeOv(); return; }
   try {
     switch (a){
-      case 'go': S.route = t.dataset.to; closeOv(); if (S.route === 'settings') await openSettingsTab(t.dataset.tab || S.stab); else render(); { const m = $('#main'); if (m) m.scrollTop = 0; } break;
+      case 'go': {
+        await flushSave();
+        S.route = t.dataset.to; closeOv();
+        if (S.route !== 'report'){ S.rcur = null; S.rid = null; S.saved = ''; }
+        if (S.route === 'settings') await openSettingsTab(t.dataset.tab || S.stab);
+        else if (S.route === 'reports'){ render(); await busy(loadReports()); if (S.route === 'reports') render(); }
+        else render();
+        { const m = $('#main'); if (m) m.scrollTop = 0; } break; }
+      case 'repNew': {
+        const d = t.dataset.date || TODAY();
+        const has = (S.reports || []).find(r => r.author === S.me.id && r.report_date === d);
+        if (has){ openReport(has.id); toast(`${fmtMD(d)} 보고서를 이어서 씁니다`); break; }
+        S.rcur = newReport(d); S.rid = null; S.route = 'report'; S.pane = 'form'; S.saved = '';
+        render(); afterRepRender(); break; }
+      case 'repOpen': openReport(t.dataset.id); break;
+      case 'repPrint': window.print(); break;
+      case 'repSend': toast('보고하기(메일 PDF · 문자)는 4단계에서 열립니다'); break;
+      case 'repDel': {
+        if (!armed(t, '정말 삭제')) break;
+        const r = S.rcur; if (!r) break;
+        clearTimeout(saveT);
+        if (r.id){
+          const { data, error } = await busy(sb.from('reports').delete().eq('id', r.id).select('id'));
+          if (error || !data || !data.length) throw new Error(error ? dbMsg(error) : '삭제하지 못했습니다');
+          S.reports = (S.reports || []).filter(x => x.id !== r.id);
+        }
+        S.rcur = null; S.rid = null; S.route = 'reports'; render(); toast('보고서를 삭제했어요'); break; }
+      case 'pane': {
+        S.pane = t.dataset.v;
+        const ed = $('.editor');
+        if (ed){ ed.dataset.pane = S.pane; $$('.eseg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === S.pane)); refreshPreview(); $('#main').scrollTop = 0; }
+        break; }
+      case 'rFilter': S.f[t.dataset.k] = t.dataset.v; render(); break;
       case 'logout': await logout(); break;
       case 'stab': await openSettingsTab(t.dataset.v); break;
       case 'closeOv': closeOv(); break;
@@ -946,6 +1269,18 @@ document.addEventListener('click', async e => {
     }
   } catch(err){ toast(err.message || String(err)); }
 });
+async function openReport(id){
+  await flushSave();
+  if (S.reports === null) await busy(loadReports());
+  const r = repById(id);
+  if (!r){ toast('보고서를 찾을 수 없습니다'); S.route = 'reports'; render(); return; }
+  S.rcur = fixRep(r); S.rid = id; S.route = 'report'; S.pane = 'form'; S.saved = repMine(r) ? '자동 저장됩니다' : '';
+  render(); afterRepRender();
+  const m = $('#main'); if (m) m.scrollTop = 0;
+}
+function afterRepRender(){ fitA4(); measureA4(); autoGrow($('#r-body')); autoGrow($('#r-etc')); }
+function autoGrow(el){ if (!el) return; el.style.height = 'auto'; el.style.height = Math.min(900, el.scrollHeight + 2) + 'px'; }
+
 function armed(btn, label){
   if (btn.dataset.armed){ delete btn.dataset.armed; return true; }
   const old = btn.innerHTML; btn.dataset.armed = 1; btn.classList.add('danger','armed'); btn.textContent = label;
@@ -1073,8 +1408,24 @@ document.addEventListener('submit', async e => {
   } catch(ex){ toast(ex.message || String(ex)); }
 });
 
+document.addEventListener('change', async e => {
+  const t = e.target;
+  if (t.dataset && t.dataset.filter){ S.f[t.dataset.filter] = t.value; render(); }
+});
+
+let prevT = null;
 document.addEventListener('input', e => {
   const t = e.target;
+  if (t.dataset && t.dataset.rf && S.rcur && repMine(S.rcur)){
+    const k = t.dataset.rf;
+    if (k[0] === 's' && /^s\d+$/.test(k)) S.rcur.schedule[+k.slice(1)] = t.value;
+    else S.rcur[k] = t.value;
+    if (k === 'body' || k === 'etc') autoGrow(t);
+    if (k[0] === 's' && /^s\d+$/.test(k)){ const el = $('#filled'); if (el) el.textContent = `${S.rcur.schedule.filter(x => x.trim()).length}/14칸`; }
+    clearTimeout(prevT); prevT = setTimeout(refreshPreview, 120);
+    queueSave();
+    return;
+  }
   if (t.matches('.otp input')){
     t.value = t.value.replace(/\D/g,'').slice(-1);
     const i = +t.id.slice(3); if (t.value && i < 5) $('#otp'+(i+1)).focus();
@@ -1096,12 +1447,19 @@ document.addEventListener('paste', e => {
   $('#otp-ok').disabled = d.length < 6; if (d.length === 6) $('#otp-ok').click();
 });
 
+try { new ResizeObserver(() => fitA4()).observe($('#app')); } catch(e){}
+addEventListener('beforeunload', e => {
+  if (S.rcur && repMine(S.rcur) && (saving || savePend || /저장할 내용/.test(S.saved || ''))){ e.preventDefault(); e.returnValue = ''; }
+});
+addEventListener('pagehide', () => { try { flushSave(); } catch(e){} });
+
 if (sb){
   sb.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT' && S.screen !== 'login') toLogin('로그아웃되었습니다. 다시 로그인하세요'); });
 }
 render();
 boot().catch(e => toLogin(dbMsg(e)));
 })();
+
 
 </script>
 </body>

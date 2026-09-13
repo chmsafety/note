@@ -4,14 +4,14 @@
    2) 항상 인터넷을 먼저 시도하고(최신본 우선), 실패하면 저장해 둔 것을 보여줍니다.
    3) Supabase·구글 글꼴 등 바깥 주소는 손대지 않고 그대로 통과시킵니다. */
 
-const VER   = 'v4';
+const VER   = 'v5';
 const CACHE = 'note-' + VER;
 
 const SHELL = [
   './',
   './index.html',
-  './app.css?v=4',
-  './app.js?v=4',
+  './app.css?v=5',
+  './app.js?v=5',
   './manifest.webmanifest',
   './icon-192.png',
   './icon-512.png',

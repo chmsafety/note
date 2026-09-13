@@ -39,7 +39,9 @@ code{font:12px var(--mono);background:var(--surface-3);padding:1px 5px;border-ra
 svg.i{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 
 /* ── 무대 ── */
-.app{position:relative;height:100vh;height:100dvh;background:var(--ground);overflow:hidden;container:app / inline-size}
+.app{position:relative;height:100vh;height:100dvh;background:var(--ground);overflow:hidden;container:app / inline-size;
+  /* 앱으로 설치해 열었을 때 시계·홈 표시줄에 화면이 가리지 않게 */
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 #view{height:100%}
 
 /* ── 셸 ── */
@@ -335,7 +337,7 @@ select.in{height:34px;padding:0 30px 0 10px;width:auto;font-size:13px}
 .errtx{font-size:12.5px;color:var(--danger);min-height:18px}
 
 /* ── 오버레이 ── */
-.overlay{position:absolute;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:24px;z-index:50}
+.overlay{position:absolute;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center;z-index:50;padding:calc(24px + env(safe-area-inset-top)) calc(24px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left))}
 .dlg{background:var(--surface);border-radius:14px;width:min(580px,100%);max-height:100%;display:flex;flex-direction:column;box-shadow:var(--shadow);min-height:0}
 .dlg-h{padding:15px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px}
 .dlg-h h2{margin:0;font-size:16px}
@@ -375,7 +377,7 @@ select.in{height:34px;padding:0 30px 0 10px;width:auto;font-size:13px}
 .lb .bar{display:flex;gap:10px;align-items:center;font-size:13px}
 .lb .bar button{background:rgba(255,255,255,.14);border:0;color:#fff;height:34px;min-width:34px;border-radius:8px;cursor:pointer;display:grid;place-items:center;padding:0 10px}
 .lb .x{position:absolute;top:14px;right:14px}
-.toast{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:10px;font-size:13px;z-index:70;box-shadow:var(--shadow);max-width:calc(100% - 32px);width:max-content;text-align:center;transition:opacity .2s}
+.toast{position:absolute;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:10px;font-size:13px;z-index:70;box-shadow:var(--shadow);max-width:calc(100% - 32px);width:max-content;text-align:center;transition:opacity .2s}
 .toast[hidden]{display:none}
 
 /* ── 모바일 (앱 너비 기준) ── */
@@ -420,9 +422,9 @@ select.in{height:34px;padding:0 30px 0 10px;width:auto;font-size:13px}
   .rcrow{grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:12px 16px}
   .rcrow .dp{grid-column:1/-1;grid-row:2}
   .rcrow .ad{grid-column:1/-1;grid-row:3}
-  .overlay{align-items:flex-end;padding:0}
+  .overlay{align-items:flex-end;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
   .dlg{border-radius:18px 18px 0 0;max-height:94%}
-  .toast{bottom:86px}
+  .toast{bottom:calc(86px + env(safe-area-inset-bottom))}
   .sends .it{grid-template-columns:22px minmax(0,1fr) auto;padding:9px 16px}
   .sends .it .mono{grid-column:2;grid-row:2}
   .pgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
@@ -445,7 +447,7 @@ details[open] summary{margin-bottom:8px}
 .ico-s{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--surface-3);color:var(--ink-3);flex:none}
 .ico-s.ok{background:var(--ok-soft);color:var(--ok)}
 .ico-s svg.i{width:16px;height:16px}
-#busy{position:absolute;top:0;left:0;right:0;height:3px;z-index:80;background:linear-gradient(90deg,transparent,var(--accent),transparent);background-size:40% 100%;background-repeat:no-repeat;animation:busy 1s linear infinite}
+#busy{position:absolute;top:env(safe-area-inset-top);left:0;right:0;height:3px;z-index:80;background:linear-gradient(90deg,transparent,var(--accent),transparent);background-size:40% 100%;background-repeat:no-repeat;animation:busy 1s linear infinite}
 @keyframes busy{from{background-position:-40% 0}to{background-position:140% 0}}
 .dlg .kv{grid-template-columns:96px minmax(0,1fr)}
 .dlg .secret{display:inline-block;font-size:16px}

@@ -3,7 +3,7 @@
    ════════════════════════════════════════════════════════════════ */
 (function(){
 'use strict';
-const VERSION = '4단계 · 2026-09-13';
+const VERSION = 'note 1.0 · 2026-09-13';
 
 /* ───────── 유틸 ───────── */
 const $ = (s, el=document) => el.querySelector(s);
@@ -1110,6 +1110,10 @@ function setMe(){
       <div class="errtx" id="pw-err" role="alert"></div>
       <div><button class="btn primary" type="submit">${ic('key')}비밀번호 바꾸기</button></div>
     </form></section>
+    <section class="panel"><div class="panel-h"><h2>앱으로 쓰기</h2></div><div class="panel-b" style="display:flex;flex-direction:column;gap:12px">
+      <p class="hint" style="margin:0">홈 화면에 추가하면 주소창 없이 앱처럼 열리고, 인터넷이 잠깐 끊겨도 화면이 뜹니다.</p>
+      <div><button class="btn" type="button" data-act="pwaInstall">${ic('phone')}홈 화면에 추가</button></div>
+    </div></section>
   </div>`;
 }
 function setMfa(){
@@ -1286,6 +1290,13 @@ document.addEventListener('click', async e => {
         const ph = S.mcur.photos || [], i = ph.findIndex(p => p.id === S.lb);
         const n = a === 'lbPrev' ? i-1 : i+1;
         if (ph[n]){ S.lb = ph[n].id; $('#ov').innerHTML = viewLightbox(); }
+        break; }
+      case 'pwaInstall': {
+        if (window.__pwaInstall && window.__pwaInstall()) break;
+        const ua = navigator.userAgent;
+        const ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        toast(ios ? '사파리 아래 공유 단추 → ‘홈 화면에 추가’를 눌러 주세요.'
+                  : '이미 추가했거나, 브라우저 메뉴 → ‘앱 설치’에서 추가할 수 있어요.');
         break; }
       case 'logout': await logout(); break;
       case 'stab': await openSettingsTab(t.dataset.v); break;

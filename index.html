@@ -55,9 +55,10 @@ window.NOTE_CONFIG = {
           });
         });
       }).catch(function () {});
-      var reloaded = false;
+      /* 처음 설치될 때가 아니라, 새 버전으로 바뀌었을 때만 한 번 새로고침 */
+      var had = !!navigator.serviceWorker.controller, reloaded = false;
       navigator.serviceWorker.addEventListener('controllerchange', function () {
-        if (reloaded) return; reloaded = true; location.reload();
+        if (!had || reloaded) return; reloaded = true; location.reload();
       });
     });
   }
@@ -76,6 +77,16 @@ window.NOTE_CONFIG = {
 
   /* 3) 안드로이드·PC 크롬 : 진짜 설치 버튼 */
   var deferred = null, box = null;
+
+  /* 설정 화면의 ‘홈 화면에 추가’ 단추가 부르는 함수 */
+  window.__pwaInstall = function () {
+    if (!deferred) return false;
+    if (box) { box.remove(); box = null; }
+    deferred.prompt();
+    deferred.userChoice.then(function () { deferred = null; });
+    return true;
+  };
+
   window.addEventListener('beforeinstallprompt', function (e) {
     e.preventDefault(); deferred = e;
     if (box || localStorage.getItem('note-install-no') === '1') return;

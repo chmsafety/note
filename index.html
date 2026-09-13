@@ -11,6 +11,13 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="app.css?v=4">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="note">
 </head>
 <body>
 <div class="app" id="app">
@@ -31,5 +38,82 @@ window.NOTE_CONFIG = {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="app.js?v=4"></script>
+<script>
+/* 홈 화면 설치 + 오프라인 준비 (note) */
+(function () {
+  var STANDALONE = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+  /* 1) 서비스 워커 등록 */
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js', { scope: './' }).then(function (reg) {
+        reg.addEventListener('updatefound', function () {
+          var w = reg.installing;
+          if (!w) return;
+          w.addEventListener('statechange', function () {
+            if (w.state === 'installed' && navigator.serviceWorker.controller) w.postMessage('skip-waiting');
+          });
+        });
+      }).catch(function () {});
+      var reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (reloaded) return; reloaded = true; location.reload();
+      });
+    });
+  }
+
+  if (STANDALONE) return;  /* 이미 앱으로 열었으면 안내 안 함 */
+
+  /* 2) 아래에 뜨는 작은 안내 막대 */
+  function bar(html) {
+    var d = document.createElement('div');
+    d.setAttribute('style', 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom));z-index:9999;max-width:calc(100vw - 24px);display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;background:#16201C;color:#fff;box-shadow:0 10px 28px rgba(0,0,0,.28);font:500 13px/1.45 "IBM Plex Sans KR",system-ui,sans-serif');
+    d.innerHTML = html;
+    document.body.appendChild(d);
+    return d;
+  }
+  var BTN = 'border:0;border-radius:10px;padding:8px 12px;font:600 13px/1 "IBM Plex Sans KR",system-ui,sans-serif;cursor:pointer';
+
+  /* 3) 안드로이드·PC 크롬 : 진짜 설치 버튼 */
+  var deferred = null, box = null;
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault(); deferred = e;
+    if (box || localStorage.getItem('note-install-no') === '1') return;
+    box = bar('<span style="flex:1 1 auto">홈 화면에 <b>note</b>를 추가하면 앱처럼 쓸 수 있어요.</span>' +
+              '<button id="pwaYes" style="' + BTN + ';background:#2BC45F;color:#fff">추가</button>' +
+              '<button id="pwaNo" style="' + BTN + ';background:transparent;color:#9FB0A8">닫기</button>');
+    box.querySelector('#pwaYes').onclick = function () {
+      box.remove(); box = null;
+      if (!deferred) return;
+      deferred.prompt();
+      deferred.userChoice.then(function () { deferred = null; });
+    };
+    box.querySelector('#pwaNo').onclick = function () {
+      try { localStorage.setItem('note-install-no', '1'); } catch (e2) {}
+      box.remove(); box = null;
+    };
+  });
+  window.addEventListener('appinstalled', function () {
+    if (box) { box.remove(); box = null; }
+    try { localStorage.setItem('note-install-no', '1'); } catch (e2) {}
+  });
+
+  /* 4) 아이폰 사파리 : 설치 버튼이 없어서 방법만 알려 줍니다 */
+  var ua = navigator.userAgent;
+  var iOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var safari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+  if (iOS && safari) {
+    setTimeout(function () {
+      if (localStorage.getItem('note-install-no') === '1') return;
+      var b = bar('<span style="flex:1 1 auto">아래 <b>공유</b> 단추 → <b>홈 화면에 추가</b>를 누르면 앱처럼 쓸 수 있어요.</span>' +
+                  '<button id="pwaNo2" style="' + BTN + ';background:transparent;color:#9FB0A8">닫기</button>');
+      b.querySelector('#pwaNo2').onclick = function () {
+        try { localStorage.setItem('note-install-no', '1'); } catch (e2) {}
+        b.remove();
+      };
+    }, 2500);
+  }
+})();
+</script>
 </body>
 </html>

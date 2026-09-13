@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#2BC45F">
 <title>note</title>
@@ -510,7 +510,7 @@ window.NOTE_CONFIG = {
    ════════════════════════════════════════════════════════════════ */
 (function(){
 'use strict';
-const VERSION = '2단계 · 2026-09-12';
+const VERSION = '3단계 · 2026-09-12';
 
 /* ───────── 유틸 ───────── */
 const $ = (s, el=document) => el.querySelector(s);
@@ -563,6 +563,12 @@ const ICON = {
   list:'<path d="M9 6.5h11M9 12h11M9 17.5h11"/><path d="M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"/>',
   eye:'<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
   print:'<path d="M7 9V3.5h10V9"/><rect x="3.5" y="9" width="17" height="7.5" rx="1.5"/><path d="M7 14h10v6.5H7z"/>',
+  camera:'<path d="M3.5 8h3.5l2-3h6l2 3h3.5v11.5h-17z"/><circle cx="12" cy="13.5" r="3.5"/>',
+  image:'<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m20.5 16-5-5-8.5 8"/>',
+  search:'<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/>',
+  import:'<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 20h14"/>',
+  chevl:'<path d="M14.5 5.5 8 12l6.5 6.5"/>',
+  chevr:'<path d="M9.5 5.5 16 12l-6.5 6.5"/>',
 };
 const ic = (n, cls='') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]||''}</svg>`;
 
@@ -572,7 +578,8 @@ const S = {
   me:null, email:'', factorId:null, enroll:null, reEnroll:null, factors:[],
   users:null, mail:null, sms:null, settings:{},
   reports:null, rid:null, rcur:null, pane:'form', saved:'',
-  f:{ rMonth:'all', rStatus:'all', rAuthor:'all' },
+  meetings:null, mcur:null, photos:[], urls:{}, lb:null,
+  f:{ rMonth:'all', rStatus:'all', rAuthor:'all', mq:'' },
   err:'',
 };
 const isAdmin = () => S.me && S.me.role === 'admin' && S.me.active;
@@ -663,12 +670,13 @@ async function loadMe(){
   preload();
 }
 async function preload(){
-  await Promise.all([loadSettings(), loadRcpt('mail'), loadRcpt('sms'), loadReports(), isAdmin() ? loadUsers() : null]);
+  await Promise.all([loadSettings(), loadRcpt('mail'), loadRcpt('sms'), loadReports(), loadMemos(), isAdmin() ? loadUsers() : null]);
   if (S.screen === 'app') render();
 }
-function toLogin(msg){ clearTimeout(saveT); S.screen = 'login'; S.err = msg || ''; S.me = null; S.users = S.mail = S.sms = S.reports = null;
+function toLogin(msg){ clearTimeout(saveT); S.screen = 'login'; S.err = msg || ''; S.me = null; S.users = S.mail = S.sms = S.reports = S.meetings = null;
   S.route = 'home'; S.stab = 'me'; S.reEnroll = null; S.factors = []; S.rcur = null; S.rid = null; S.pane = 'form'; S.saved = '';
-  S.f = { rMonth:'all', rStatus:'all', rAuthor:'all' }; closeOv(); render(); }
+  S.mcur = null; S.lb = null; S.photos = []; S.urls = {}; clearTimeout(mSaveT);
+  S.f = { rMonth:'all', rStatus:'all', rAuthor:'all', mq:'' }; closeOv(); render(); }
 async function logout(){ try { await sb.auth.signOut({ scope:'local' }); } catch(e){} toLogin(''); }
 
 async function loadSettings(){ const { data } = await sb.from('app_settings').select('key,value'); S.settings = Object.fromEntries((data||[]).map(r => [r.key, r.value])); }
@@ -753,7 +761,139 @@ async function saveReport(){
     if (savePend){ savePend = false; queueSave(); }
   }
 }
-async function flushSave(){ clearTimeout(saveT); if (S.rcur && repMine(S.rcur)) await saveReport(); }
+async function flushSave(){ clearTimeout(saveT); if (S.rcur && repMine(S.rcur)) await saveReport(); if (S.mcur) await saveMemo(); }
+
+/* ───────── 메모 : 데이터 ───────── */
+const MEM_COLS = 'id,author,title,meet_date,meet_time,place,people,agenda,discussion,decisions,todos,created_at,updated_at';
+const BUCKET = 'meeting-photos';
+
+function fixMemo(m){
+  const arr = v => Array.isArray(v) ? v : [];
+  return Object.assign({}, m, {
+    people: arr(m.people).map(x => String(x ?? '')).filter(Boolean),
+    todos:  arr(m.todos).map(t => ({ id:String(t.id || uid()), t:String(t.t ?? ''), o:String(t.o ?? ''), d:String(t.d ?? ''), k:!!t.k })),
+  });
+}
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'x' + Math.random().toString(36).slice(2) + Date.now().toString(36));
+const memById = id => (S.meetings || []).find(m => m.id === id);
+
+async function loadMemos(){
+  const { data, error } = await sb.from('meetings').select(MEM_COLS)
+    .order('meet_date', { ascending:false }).order('meet_time', { ascending:false }).limit(400);
+  if (error){ toast(dbMsg(error)); if (!S.meetings) S.meetings = []; return; }
+  S.meetings = (data || []).map(fixMemo);
+  const ids = S.meetings.map(m => m.id);
+  if (ids.length){
+    const { data: ph } = await sb.from('meeting_photos').select('id,meeting,path,caption,bytes,sort,created_at').in('meeting', ids).order('sort').order('created_at');
+    const by = {}; (ph || []).forEach(p => (by[p.meeting] = by[p.meeting] || []).push(p));
+    S.meetings.forEach(m => m.photos = by[m.id] || []);
+  } else S.meetings.forEach(m => m.photos = []);
+}
+function newMemo(){
+  const now = new Date();
+  return { id:null, author:S.me.id, title:'', meet_date:TODAY(), meet_time:`${pad(now.getHours())}:${pad(now.getMinutes())}`,
+    place:'', people:[], agenda:'', discussion:'', decisions:'', todos:[], photos:[] };
+}
+function memPayload(m){
+  return { title:(m.title||'').trim().slice(0,120), meet_date:m.meet_date, meet_time:(m.meet_time||'').slice(0,5),
+    place:(m.place||'').trim().slice(0,120), people:m.people.slice(0,60),
+    agenda:m.agenda||'', discussion:m.discussion||'', decisions:m.decisions||'',
+    todos:m.todos.slice(0,60).map(t => ({ id:t.id, t:String(t.t||'').slice(0,200), o:String(t.o||'').slice(0,40), d:t.d||'', k:!!t.k })) };
+}
+
+let mSaveT = null, mSaving = false, mPend = false;
+function queueMemoSave(){
+  markSaving('저장할 내용이 있어요');
+  clearTimeout(mSaveT);
+  mSaveT = setTimeout(() => { saveMemo().catch(e => toast(e.message || String(e))); }, 1200);
+}
+async function saveMemo(){
+  const m = S.mcur;
+  if (!m) return null;
+  if (mSaving){ mPend = true; return null; }
+  if (!m.meet_date){ markSaving('일자를 정해 주세요'); return null; }
+  mSaving = true; markSaving('저장 중…');
+  try {
+    const row = memPayload(m);
+    let out;
+    if (m.id){
+      const { data, error } = await sb.from('meetings').update(row).eq('id', m.id).select(MEM_COLS).maybeSingle();
+      if (error) throw new Error(dbMsg(error));
+      if (!data) throw new Error('저장하지 못했습니다. 다시 로그인해 주세요');
+      out = fixMemo(data);
+    } else {
+      row.author = S.me.id;
+      const { data, error } = await sb.from('meetings').insert(row).select(MEM_COLS).maybeSingle();
+      if (error) throw new Error(dbMsg(error));
+      if (!data) throw new Error('저장하지 못했습니다. 다시 로그인해 주세요');
+      out = fixMemo(data); m.id = out.id;
+    }
+    out.photos = m.photos || [];
+    const i = (S.meetings || []).findIndex(x => x.id === out.id);
+    if (i >= 0) S.meetings[i] = out; else if (S.meetings) S.meetings.unshift(out);
+    markSaving('저장됨 ' + fmtDT(new Date().toISOString()));
+    return out;
+  } finally { mSaving = false; if (mPend){ mPend = false; queueMemoSave(); } }
+}
+
+/* ── 사진 : 줄이기 · 위치정보 지우기 · 올리기 ── */
+async function shrink(file){
+  const MAX = 1600;
+  let bmp;
+  try { bmp = await createImageBitmap(file, { imageOrientation:'from-image' }); }
+  catch(e){ bmp = await createImageBitmap(file); }
+  const s = Math.min(1, MAX / Math.max(bmp.width, bmp.height));
+  const w = Math.max(1, Math.round(bmp.width * s)), h = Math.max(1, Math.round(bmp.height * s));
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  cv.getContext('2d').drawImage(bmp, 0, 0, w, h);
+  if (bmp.close) bmp.close();
+  const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.82));
+  if (!blob) throw new Error('사진을 처리하지 못했습니다');
+  return blob;   // 캔버스로 다시 그리므로 EXIF(위치정보)는 남지 않습니다
+}
+async function addPhotos(files){
+  const m = S.mcur; if (!m) return;
+  const list = [...files].filter(f => /^image\//.test(f.type)).slice(0, 12);
+  if (!list.length) return;
+  if ((m.photos || []).length + list.length > 24) return toast('사진은 메모 하나에 24장까지 넣을 수 있어요');
+  if (!m.id){ const out = await saveMemo(); if (!out) return toast('먼저 제목이나 일자를 채워 주세요'); }
+  let done = 0;
+  for (const f of list){
+    try {
+      markSaving(`사진 올리는 중… ${done+1}/${list.length}`);
+      const blob = await shrink(f);
+      const path = `${S.me.id}/${m.id}/${uid()}.jpg`;
+      const { error: upErr } = await sb.storage.from(BUCKET).upload(path, blob, { contentType:'image/jpeg', upsert:false });
+      if (upErr) throw new Error(/exceeded|too large/i.test(upErr.message||'') ? '사진이 너무 큽니다' : (upErr.message || '올리지 못했습니다'));
+      const { data, error } = await sb.from('meeting_photos')
+        .insert({ meeting:m.id, author:S.me.id, path, bytes:blob.size, sort:(m.photos||[]).length + done })
+        .select('id,meeting,path,caption,bytes,sort,created_at').maybeSingle();
+      if (error){ await sb.storage.from(BUCKET).remove([path]).catch(() => null); throw new Error(dbMsg(error)); }
+      (m.photos = m.photos || []).push(data);
+      done++;
+    } catch(e){ toast(e.message || String(e)); break; }
+  }
+  markSaving('저장됨 ' + fmtDT(new Date().toISOString()));
+  const mm = memById(m.id); if (mm) mm.photos = m.photos;
+  paintPhotos();
+}
+async function delPhoto(id){
+  const m = S.mcur; if (!m) return;
+  const p = (m.photos || []).find(x => x.id === id); if (!p) return;
+  const { data, error } = await busy(sb.from('meeting_photos').delete().eq('id', id).select('id'));
+  if (error || !data || !data.length) throw new Error(error ? dbMsg(error) : '지우지 못했습니다');
+  await sb.storage.from(BUCKET).remove([p.path]).catch(() => null);
+  m.photos = m.photos.filter(x => x.id !== id);
+  const mm = memById(m.id); if (mm) mm.photos = m.photos;
+  delete S.urls[p.path];
+  paintPhotos(); toast('사진을 지웠어요');
+}
+async function signPhotos(paths){
+  const need = paths.filter(p => !S.urls[p]);
+  if (!need.length) return;
+  const { data } = await sb.storage.from(BUCKET).createSignedUrls(need, 3600);
+  (data || []).forEach(d => { if (d && d.signedUrl && !d.error) S.urls[d.path] = d.signedUrl; });
+}
 
 /* ───────── 렌더 ───────── */
 function render(){
@@ -861,7 +1001,8 @@ function viewRoute(){
   if (S.route === 'settings') return viewSettings();
   if (S.route === 'report') return viewReportEdit();
   if (S.route === 'reports') return viewReports();
-  if (S.route === 'meetings') return viewSoon('메모', '메모 · 사진 첨부 · 할 일은 3단계에서 열립니다.', '사진은 비공개 저장소에 보관');
+  if (S.route === 'memo') return viewMemoEdit();
+  if (S.route === 'meetings') return viewMemos();
   return viewHome();
 }
 /* ───────── 보고서 : 목록 ───────── */
@@ -1002,6 +1143,121 @@ function viewReportEdit(){
   </div>`;
 }
 
+/* ───────── 메모 : 목록 ───────── */
+const relDay = iso => {
+  const d = dObj(iso), t = new Date(); t.setHours(0,0,0,0);
+  const n = Math.round((d - t) / 86400000);
+  return n === 0 ? '오늘' : n === -1 ? '어제' : n === 1 ? '내일' : n < 0 ? `${-n}일 전` : `${n}일 뒤`;
+};
+function memCard(m){
+  const done = m.todos.filter(t => t.k).length;
+  const ph = (m.photos || []);
+  return `<button class="panel mcard" data-act="memOpen" data-id="${esc(m.id)}">
+    <div class="when"><span>${fmtRow(m.meet_date)} ${esc(m.meet_time)}</span><span>${relDay(m.meet_date)}</span></div>
+    <h3>${esc(m.title || '제목 없음')}</h3>
+    ${m.place ? `<div class="pl">${ic('pin')}${esc(m.place)}</div>` : ''}
+    ${m.people.length ? `<div class="people">${m.people.map(p => `<span>${esc(p)}</span>`).join('')}</div>` : ''}
+    ${m.decisions ? `<div class="ex">${esc(m.decisions)}</div>` : ''}
+    <div class="foot"><div class="thumbs">${ph.slice(0,3).map(p => `<img src="${esc(S.urls[p.path] || '')}" alt="" loading="lazy">`).join('')}${ph.length>3?`<span class="more">+${ph.length-3}</span>`:''}</div>
+      ${m.todos.length ? `<span class="todoc">${ic('check')}할 일 ${done}/${m.todos.length}</span>` : ''}</div>
+  </button>`;
+}
+function viewMemos(){
+  if (S.meetings === null) return `<div class="page"><div class="ph"><div><h1>메모</h1></div></div><section class="panel empty">불러오는 중…</section></div>`;
+  const q = S.f.mq.trim().toLowerCase();
+  let list = S.meetings.slice();
+  if (q) list = list.filter(m => [m.title, m.place, m.people.join(' '), m.agenda, m.discussion, m.decisions].join(' ').toLowerCase().includes(q));
+  return `<div class="page">
+    <div class="ph"><div><h1>메모</h1><div class="sub">내가 쓴 미팅 · 회의 기록과 현장 사진 — 나만 볼 수 있습니다</div></div>
+      <div class="acts"><button class="btn primary" data-act="memNew">${ic('plus')}새 메모</button></div></div>
+    <div class="filters"><div class="search">${ic('search')}<label class="sr" for="mq">검색</label><input class="in" id="mq" data-filter="mq" placeholder="제목 · 참석자 · 내용 검색" value="${esc(S.f.mq)}"></div><span class="hint">${list.length}건</span></div>
+    <div class="mgrid" id="mgrid">${list.length ? list.map(memCard).join('') : `<div class="panel empty">${S.meetings.length ? '검색 결과가 없습니다' : '아직 메모가 없습니다. <b>새 메모</b>를 눌러 시작하세요.'}</div>`}</div>
+  </div>`;
+}
+
+/* ───────── 메모 : 작성 ───────── */
+function chipsHTML(m){
+  return m.people.map((p,i) => `<span class="chip">${esc(p)}<button type="button" data-act="chipDel" data-i="${i}" aria-label="${esc(p)} 빼기">${ic('x')}</button></span>`).join('')
+    + `<input id="chipIn" placeholder="${m.people.length ? '' : '이름을 적고 Enter'}" autocomplete="off">`;
+}
+function photosHTML(m){
+  const ph = m.photos || [];
+  if (!ph.length) return `<div class="hint" style="grid-column:1/-1;text-align:center;padding:14px 0">아직 사진이 없습니다</div>`;
+  return ph.map(p => `<div class="pit">
+    <img src="${esc(S.urls[p.path] || '')}" alt="${esc(p.caption || '현장 사진')}" loading="lazy" data-act="lbOpen" data-id="${esc(p.id)}">
+    <button class="rm" type="button" data-act="phoDel" data-id="${esc(p.id)}" aria-label="사진 지우기" title="사진 지우기">${ic('trash')}</button>
+    <input class="in" value="${esc(p.caption)}" data-pc="${esc(p.id)}" placeholder="설명 (선택)" maxlength="200">
+    <span class="kb">${Math.round((p.bytes||0)/1024)} KB</span>
+  </div>`).join('');
+}
+function todosHTML(m){
+  if (!m.todos.length) return `<div class="hint">할 일이 없습니다. <b>추가</b>를 눌러 적어 두세요.</div>`;
+  return m.todos.map((t,i) => `<div class="todo ${t.k?'done':''}">
+    <input class="ck" type="checkbox" ${t.k?'checked':''} data-td="k" data-i="${i}" aria-label="끝냄">
+    <input class="in tx" value="${esc(t.t)}" data-td="t" data-i="${i}" placeholder="할 일" maxlength="200">
+    <input class="in ow" value="${esc(t.o)}" data-td="o" data-i="${i}" placeholder="담당" maxlength="40">
+    <input class="in du" type="date" value="${esc(t.d)}" data-td="d" data-i="${i}" aria-label="기한">
+    <button class="iconbtn rm" type="button" data-act="todoDel" data-i="${i}" aria-label="할 일 지우기">${ic('x')}</button>
+  </div>`).join('');
+}
+function viewMemoEdit(){
+  const m = S.mcur;
+  if (!m) return `<div class="page"><div class="empty">메모를 찾을 수 없습니다</div></div>`;
+  const sameDayRep = (S.reports || []).find(r => r.author === S.me.id && r.report_date === m.meet_date);
+  return `<div class="page">
+    <div class="ph"><div><button class="back" data-act="go" data-to="meetings">${ic('back')}메모</button>
+      <h1>${m.title ? esc(m.title) : '새 메모'}</h1><div class="sub"><span class="saved" id="saved">${esc(S.saved || '자동 저장됩니다')}</span></div></div>
+      <div class="acts"><button class="btn quiet" data-act="memDel">${ic('trash')}삭제</button>
+        <button class="btn" data-act="memToReport" ${m.decisions.trim() ? '' : 'disabled'} title="${m.decisions.trim() ? (sameDayRep ? '그날 보고서의 주요 업무/결과에 붙입니다' : '그날 보고서를 새로 만들어 붙입니다') : '결정 사항을 먼저 적어 주세요'}">${ic('import')}현장활동보고서에 넣기</button></div></div>
+    <div class="medit">
+      <div class="col">
+        <div class="field"><label for="m-title" class="req">제목</label><input class="in ttl-in" id="m-title" data-mf="title" value="${esc(m.title)}" maxlength="120" placeholder="예: 시범 도입 사업장 선정 미팅"></div>
+        <div class="fgrid">
+          <div class="field"><label for="m-date">일자</label><input class="in" type="date" id="m-date" data-mf="meet_date" value="${esc(m.meet_date)}"></div>
+          <div class="field"><label for="m-time">시간</label><input class="in" type="time" id="m-time" data-mf="meet_time" value="${esc(m.meet_time)}"></div>
+          <div class="field full"><label for="m-place">장소</label><input class="in" id="m-place" data-mf="place" value="${esc(m.place)}" maxlength="120" placeholder="예: 판교 테크원 시설관리사무소"></div>
+          <div class="field full"><label for="chipIn">참석자</label><div class="chips" id="chips">${chipsHTML(m)}</div><span class="hint">이름을 적고 Enter 또는 쉼표</span></div>
+        </div>
+        <div class="field"><label for="m-agenda">안건</label><textarea class="in" id="m-agenda" rows="3" data-mf="agenda" maxlength="3000">${esc(m.agenda)}</textarea></div>
+        <div class="field"><label for="m-disc">논의 내용</label><textarea class="in" id="m-disc" rows="7" data-mf="discussion" maxlength="8000">${esc(m.discussion)}</textarea></div>
+        <div class="field"><label for="m-dec">결정 사항</label><textarea class="in" id="m-dec" rows="3" data-mf="decisions" maxlength="3000" placeholder="한 줄에 하나씩 — ‘현장활동보고서에 넣기’ 때 그대로 옮겨집니다">${esc(m.decisions)}</textarea></div>
+      </div>
+      <div class="col">
+        <section class="panel"><div class="panel-h"><h2>사진</h2><span class="hint" id="pcount">${(m.photos||[]).length}장</span></div>
+          <div class="panel-b" style="display:flex;flex-direction:column;gap:12px">
+            <div class="padd"><label class="btn" for="camIn">${ic('camera')}사진 찍기</label><label class="btn" for="albIn">${ic('image')}앨범에서 선택</label>
+              <input type="file" id="camIn" class="sr" accept="image/*" capture="environment"><input type="file" id="albIn" class="sr" accept="image/*" multiple></div>
+            <div class="pgrid" id="pgrid">${photosHTML(m)}</div>
+            <div class="hint">올리기 전에 긴 쪽 1600px 로 줄이고 위치정보(GPS)를 지웁니다. 사진은 나만 볼 수 있는 비공개 저장소에 들어갑니다.</div>
+          </div></section>
+        <section class="panel"><div class="panel-h"><h2>할 일</h2><button class="btn sm" data-act="todoAdd">${ic('plus')}추가</button></div>
+          <div class="panel-b"><div class="todos" id="todos">${todosHTML(m)}</div></div></section>
+      </div>
+    </div>
+  </div>`;
+}
+function paintPhotos(){
+  const m = S.mcur; if (!m) return;
+  signPhotos((m.photos||[]).map(p => p.path)).then(() => {
+    const g = $('#pgrid'); if (g) g.innerHTML = photosHTML(m);
+    const c = $('#pcount'); if (c) c.textContent = `${(m.photos||[]).length}장`;
+  });
+}
+function viewLightbox(){
+  if (!S.lb) return '';
+  const m = S.mcur; if (!m) return '';
+  const ph = m.photos || [], i = ph.findIndex(p => p.id === S.lb);
+  if (i < 0) return '';
+  const p = ph[i];
+  return `<div class="lb" data-act="lbBg">
+    <button class="iconbtn x" data-act="lbClose" aria-label="닫기">${ic('x')}</button>
+    <img src="${esc(S.urls[p.path] || '')}" alt="${esc(p.caption || '현장 사진')}">
+    <div class="bar"><button data-act="lbPrev" aria-label="이전" ${i===0?'disabled':''}>${ic('chevl')}</button>
+      <span>${i+1} / ${ph.length}</span>
+      <button data-act="lbNext" aria-label="다음" ${i===ph.length-1?'disabled':''}>${ic('chevr')}</button></div>
+  </div>`;
+}
+
 function viewSoon(t, a, b){
   return `<div class="page"><div class="ph"><div><h1>${t}</h1><div class="sub">준비 중</div></div></div>
     <section class="panel empty" style="padding:40px 20px"><b style="color:var(--ink);font-size:15px">${a}</b><br><span class="hint">${b}</span></section></div>`;
@@ -1054,11 +1310,17 @@ function viewHome(){
     <div class="mini">${checks.map(([t,ok,d]) => `<div class="it" style="cursor:default"><div class="ico-s ${ok?'ok':''}">${ic(ok?'check':'clock')}</div><div class="tx"><b>${t}</b><span>${esc(d)}</span></div></div>`).join('')}</div>
     ${isAdmin() && !(S.mail && S.mail.length && S.sms && S.sms.length) ? `<div class="panel-b" style="border-top:1px solid var(--line)"><button class="btn sm" data-act="go" data-to="settings" data-tab="mail">${ic('plus')}수신자 등록하러 가기</button></div>` : ''}</section>`;
 
+  const mems = S.meetings;
+  const recentMem = mems ? mems.slice(0, 3) : [];
+  const memCardP = `<section class="panel"><div class="panel-h"><h2>최근 메모</h2><button class="btn sm quiet" data-act="go" data-to="meetings">${ic('plus')}새 메모</button></div>
+    <div class="mini">${recentMem.length ? recentMem.map(m => `<button class="it" data-act="memOpen" data-id="${esc(m.id)}"><div class="tx"><b>${esc(m.title || '제목 없음')}</b><span>${fmtRow(m.meet_date)} ${esc(m.meet_time)}${m.place ? ' · ' + esc(m.place) : ''}</span></div>${(m.photos||[]).length ? `<span class="pill plain">사진 ${(m.photos||[]).length}</span>` : ''}</button>`).join('')
+      : `<div class="empty">${mems === null ? '불러오는 중…' : '아직 메모가 없습니다'}</div>`}</div></section>`;
+
   return `<div class="page">
     <div class="ph"><div><h1>${fmtLong(now)}</h1><div class="sub">${esc(u.name)} ${esc(u.title)} · ${esc(u.dept)}</div></div></div>
     <div class="hgrid">
       <div class="stack">${todayCard}${teamCard}</div>
-      <div class="stack">${recentCard}${readyCard}</div>
+      <div class="stack">${recentCard}${memCardP}${readyCard}</div>
     </div>
   </div>`;
 }
@@ -1198,9 +1460,12 @@ document.addEventListener('click', async e => {
       case 'go': {
         await flushSave();
         S.route = t.dataset.to; closeOv();
-        if (S.route !== 'report'){ S.rcur = null; S.rid = null; S.saved = ''; }
+        if (S.route !== 'report'){ S.rcur = null; S.rid = null; }
+        if (S.route !== 'memo'){ S.mcur = null; S.lb = null; }
+        if (S.route !== 'report' && S.route !== 'memo') S.saved = '';
         if (S.route === 'settings') await openSettingsTab(t.dataset.tab || S.stab);
         else if (S.route === 'reports'){ render(); await busy(loadReports()); if (S.route === 'reports') render(); }
+        else if (S.route === 'meetings'){ render(); await busy(loadMemos()); if (S.route === 'meetings'){ await signPhotos(S.meetings.flatMap(m => (m.photos||[]).slice(0,3).map(p => p.path))); render(); } }
         else render();
         { const m = $('#main'); if (m) m.scrollTop = 0; } break; }
       case 'repNew': {
@@ -1228,6 +1493,36 @@ document.addEventListener('click', async e => {
         if (ed){ ed.dataset.pane = S.pane; $$('.eseg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === S.pane)); refreshPreview(); $('#main').scrollTop = 0; }
         break; }
       case 'rFilter': S.f[t.dataset.k] = t.dataset.v; render(); break;
+
+      /* ── 메모 ── */
+      case 'memNew': await flushSave(); S.mcur = newMemo(); S.route = 'memo'; S.saved = ''; render(); { const el = $('#m-title'); if (el) el.focus(); } break;
+      case 'memOpen': await openMemo(t.dataset.id); break;
+      case 'memDel': {
+        if (!armed(t, '정말 삭제')) break;
+        const m = S.mcur; if (!m) break;
+        clearTimeout(mSaveT);
+        if (m.id){
+          const paths = (m.photos || []).map(p => p.path);
+          const { data, error } = await busy(sb.from('meetings').delete().eq('id', m.id).select('id'));
+          if (error || !data || !data.length) throw new Error(error ? dbMsg(error) : '삭제하지 못했습니다');
+          if (paths.length) await sb.storage.from(BUCKET).remove(paths).catch(() => null);
+          S.meetings = (S.meetings || []).filter(x => x.id !== m.id);
+        }
+        S.mcur = null; S.route = 'meetings'; render(); toast('메모를 삭제했어요'); break; }
+      case 'memToReport': await memoToReport(); break;
+      case 'chipDel': { const m = S.mcur; m.people.splice(+t.dataset.i, 1); $('#chips').innerHTML = chipsHTML(m); $('#chipIn').focus(); queueMemoSave(); break; }
+      case 'todoAdd': { const m = S.mcur; m.todos.push({ id:uid(), t:'', o:'', d:'', k:false }); $('#todos').innerHTML = todosHTML(m);
+        const all = $$('#todos .tx'); if (all.length) all[all.length-1].focus(); queueMemoSave(); break; }
+      case 'todoDel': { const m = S.mcur; m.todos.splice(+t.dataset.i, 1); $('#todos').innerHTML = todosHTML(m); queueMemoSave(); break; }
+      case 'phoDel': if (armed(t, '정말 삭제')) await delPhoto(t.dataset.id); break;
+      case 'lbOpen': S.lb = t.dataset.id; $('#ov').innerHTML = viewLightbox(); break;
+      case 'lbClose': S.lb = null; closeOv(); break;
+      case 'lbBg': if (e.target === t){ S.lb = null; closeOv(); } break;
+      case 'lbPrev': case 'lbNext': {
+        const ph = S.mcur.photos || [], i = ph.findIndex(p => p.id === S.lb);
+        const n = a === 'lbPrev' ? i-1 : i+1;
+        if (ph[n]){ S.lb = ph[n].id; $('#ov').innerHTML = viewLightbox(); }
+        break; }
       case 'logout': await logout(); break;
       case 'stab': await openSettingsTab(t.dataset.v); break;
       case 'closeOv': closeOv(); break;
@@ -1279,6 +1574,48 @@ async function openReport(id){
   const m = $('#main'); if (m) m.scrollTop = 0;
 }
 function afterRepRender(){ fitA4(); measureA4(); autoGrow($('#r-body')); autoGrow($('#r-etc')); }
+
+async function openMemo(id){
+  await flushSave();
+  if (S.meetings === null) await busy(loadMemos());
+  const m = memById(id);
+  if (!m){ toast('메모를 찾을 수 없습니다'); S.route = 'meetings'; render(); return; }
+  S.mcur = fixMemo(m); S.mcur.photos = m.photos || [];
+  S.route = 'memo'; S.saved = '자동 저장됩니다'; S.lb = null;
+  render();
+  autoGrow($('#m-agenda')); autoGrow($('#m-disc')); autoGrow($('#m-dec'));
+  paintPhotos();
+  const el = $('#main'); if (el) el.scrollTop = 0;
+}
+
+// 결정 사항을 같은 날 현장활동보고서의 「주요 업무/결과」에 붙입니다
+async function memoToReport(){
+  const m = S.mcur; if (!m) return;
+  const dec = (m.decisions || '').trim();
+  if (!dec) return toast('결정 사항을 먼저 적어 주세요');
+  await saveMemo();
+  if (S.reports === null) await busy(loadReports());
+  let r = (S.reports || []).find(x => x.author === S.me.id && x.report_date === m.meet_date);
+  const head = `[${m.title || '메모'}${m.meet_time ? ' · ' + m.meet_time : ''}] 결정 사항`;
+  const block = `${head}\n${dec}`;
+  if (r){
+    if (r.body && r.body.includes(block)) return toast('이미 보고서에 들어가 있어요');
+    S.rcur = fixRep(r);
+    S.rcur.body = (S.rcur.body ? S.rcur.body.replace(/\s+$/,'') + '\n\n' : '') + block;
+    if (S.rcur.body.length > 4000) return toast('보고서 칸이 가득 찼어요. 보고서에서 먼저 줄여 주세요');
+  } else {
+    S.rcur = newReport(m.meet_date);
+    S.rcur.place = m.place || '';
+    S.rcur.main_task = m.title || '';
+    S.rcur.attendees = m.people.join(', ');
+    S.rcur.body = block;
+  }
+  S.rid = S.rcur.id;
+  const out = await busy(saveReport());
+  if (!out) return;
+  S.mcur = null; S.route = 'report'; S.pane = 'form'; render(); afterRepRender();
+  toast(`${fmtMD(m.meet_date)} 보고서에 넣었어요`);
+}
 function autoGrow(el){ if (!el) return; el.style.height = 'auto'; el.style.height = Math.min(900, el.scrollHeight + 2) + 'px'; }
 
 function armed(btn, label){
@@ -1410,10 +1747,14 @@ document.addEventListener('submit', async e => {
 
 document.addEventListener('change', async e => {
   const t = e.target;
-  if (t.dataset && t.dataset.filter){ S.f[t.dataset.filter] = t.value; render(); }
+  if (t.dataset && t.dataset.filter && t.tagName === 'SELECT'){ S.f[t.dataset.filter] = t.value; render(); return; }
+  if ((t.id === 'camIn' || t.id === 'albIn') && t.files && t.files.length){
+    const files = [...t.files]; t.value = '';
+    await addPhotos(files);
+  }
 });
 
-let prevT = null;
+let prevT = null, capT = null;
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.dataset && t.dataset.rf && S.rcur && repMine(S.rcur)){
@@ -1426,6 +1767,34 @@ document.addEventListener('input', e => {
     queueSave();
     return;
   }
+  if (t.dataset && t.dataset.mf && S.mcur){
+    S.mcur[t.dataset.mf] = t.value;
+    if (/agenda|discussion|decisions/.test(t.dataset.mf)) autoGrow(t);
+    if (t.dataset.mf === 'title'){ const h = $('.ph h1'); if (h) h.textContent = t.value || '새 메모'; }
+    if (t.dataset.mf === 'decisions'){ const b = $('[data-act=memToReport]'); if (b){ const on = !!t.value.trim(); b.disabled = !on; b.title = on ? '그날 현장활동보고서의 주요 업무/결과에 붙입니다' : '결정 사항을 먼저 적어 주세요'; } }
+    queueMemoSave(); return;
+  }
+  if (t.dataset && t.dataset.td && S.mcur){
+    const i = +t.dataset.i, k = t.dataset.td, td = S.mcur.todos[i];
+    if (!td) return;
+    if (k === 'k'){ td.k = t.checked; t.closest('.todo').classList.toggle('done', td.k); }
+    else td[k] = t.value;
+    queueMemoSave(); return;
+  }
+  if (t.dataset && t.dataset.pc && S.mcur){
+    const p = (S.mcur.photos || []).find(x => x.id === t.dataset.pc);
+    if (p){ p.caption = t.value; clearTimeout(capT); capT = setTimeout(() => {
+      sb.from('meeting_photos').update({ caption:p.caption.slice(0,200) }).eq('id', p.id).then(({error}) => { if (error) toast(dbMsg(error)); });
+    }, 900); }
+    return;
+  }
+  if (t.dataset && t.dataset.filter === 'mq'){ S.f.mq = t.value;
+    const g = $('#mgrid');
+    if (g){ const q = t.value.trim().toLowerCase();
+      let list = (S.meetings||[]).filter(m => !q || [m.title,m.place,m.people.join(' '),m.agenda,m.discussion,m.decisions].join(' ').toLowerCase().includes(q));
+      g.innerHTML = list.length ? list.map(memCard).join('') : '<div class="panel empty">검색 결과가 없습니다</div>';
+      const c = $('.filters .hint'); if (c) c.textContent = `${list.length}건`; }
+    return; }
   if (t.matches('.otp input')){
     t.value = t.value.replace(/\D/g,'').slice(-1);
     const i = +t.id.slice(3); if (t.value && i < 5) $('#otp'+(i+1)).focus();
@@ -1435,10 +1804,38 @@ document.addEventListener('input', e => {
   }
   if (t.id === 'en-code' || t.id === 're-code') t.value = t.value.replace(/\D/g,'').slice(0,6);
 });
+function addChip(v, refocus = true){
+  const m = S.mcur, name = String(v||'').trim().replace(/,$/,'').slice(0,40);
+  if (!m || !name) return false;
+  if (m.people.includes(name)) return true;
+  if (m.people.length >= 60) { toast('참석자는 60명까지 넣을 수 있어요'); return false; }
+  m.people.push(name);
+  const box = $('#chips'); if (!box) return true;
+  box.innerHTML = chipsHTML(m);
+  if (refocus){ const i = $('#chipIn'); if (i) i.focus(); }
+  queueMemoSave();
+  return true;
+}
 document.addEventListener('keydown', e => {
   const t = e.target;
   if (t.matches('.otp input') && e.key === 'Backspace' && !t.value){ const i = +t.id.slice(3); if (i > 0){ const p = $('#otp'+(i-1)); p.value = ''; p.focus(); } }
-  if (e.key === 'Escape' && $('#ov').innerHTML) closeOv();
+  if (t.id === 'chipIn' && S.mcur){
+    if (e.key === 'Enter' || e.key === ',' || (e.key === 'Tab' && t.value.trim())){ e.preventDefault(); const v = t.value; t.value = ''; addChip(v); return; }
+    if (e.key === 'Backspace' && !t.value && S.mcur.people.length){ e.preventDefault(); S.mcur.people.pop(); $('#chips').innerHTML = chipsHTML(S.mcur); $('#chipIn').focus(); queueMemoSave(); return; }
+  }
+  if (S.lb && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')){
+    const b = $(e.key === 'ArrowLeft' ? '[data-act=lbPrev]' : '[data-act=lbNext]');
+    if (b && !b.disabled) b.click();
+    return;
+  }
+  if (e.key === 'Escape' && $('#ov').innerHTML){ S.lb = null; closeOv(); }
+});
+document.addEventListener('focusout', e => {
+  if (e.target.id !== 'chipIn') return;
+  const v = e.target.value.trim(); if (!v) return;
+  e.target.value = '';
+  // blur 처리가 끝난 뒤에 다시 그립니다 (그리는 도중 지우면 브라우저가 오류를 냅니다)
+  setTimeout(() => addChip(v, false), 0);
 });
 document.addEventListener('paste', e => {
   const t = e.target; if (!t.matches('.otp input')) return;
@@ -1449,7 +1846,7 @@ document.addEventListener('paste', e => {
 
 try { new ResizeObserver(() => fitA4()).observe($('#app')); } catch(e){}
 addEventListener('beforeunload', e => {
-  if (S.rcur && repMine(S.rcur) && (saving || savePend || /저장할 내용/.test(S.saved || ''))){ e.preventDefault(); e.returnValue = ''; }
+  if ((S.rcur || S.mcur) && (saving || savePend || mSaving || mPend || /저장할 내용/.test(S.saved || ''))){ e.preventDefault(); e.returnValue = ''; }
 });
 addEventListener('pagehide', () => { try { flushSave(); } catch(e){} });
 

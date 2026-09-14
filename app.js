@@ -3,7 +3,7 @@
    ════════════════════════════════════════════════════════════════ */
 (function(){
 'use strict';
-const VERSION = 'note 1.0 · 2026-09-13';
+const VERSION = 'note 1.1 · 2026-09-14';
 
 /* ───────── 유틸 ───────── */
 const $ = (s, el=document) => el.querySelector(s);
@@ -908,6 +908,15 @@ const relDay = iso => {
   const n = Math.round((d - t) / 86400000);
   return n === 0 ? '오늘' : n === -1 ? '어제' : n === 1 ? '내일' : n < 0 ? `${-n}일 전` : `${n}일 뒤`;
 };
+/* 검색용 일자 표기 모음 — 2026-09-13 · 2026.09.13 · 2026/09/13 · 20260913 · 9/13 · 9월 13일 · 어제 … */
+function dateHay(iso){
+  if (!iso || iso.length < 10) return '';
+  const y = iso.slice(0,4), mo = iso.slice(5,7), d = iso.slice(8,10);
+  const M = +mo, D = +d;
+  return [iso, `${y}.${mo}.${d}`, `${y}/${mo}/${d}`, `${y}${mo}${d}`, `${y}년 ${M}월 ${D}일`,
+    `${M}/${D}`, `${mo}/${d}`, `${M}월 ${D}일`, `${M}월${D}일`, `${mo}-${d}`, `${mo}.${d}`,
+    ['일','월','화','수','목','금','토'][dObj(iso).getDay()] + '요일', relDay(iso)].join(' ');
+}
 function memCard(m){
   const done = m.todos.filter(t => t.k).length;
   const ph = (m.photos || []);
@@ -925,11 +934,18 @@ function viewMemos(){
   if (S.meetings === null) return `<div class="page"><div class="ph"><div><h1>메모</h1></div></div><section class="panel empty">불러오는 중…</section></div>`;
   const q = S.f.mq.trim().toLowerCase();
   let list = S.meetings.slice();
-  if (q) list = list.filter(m => [m.title, m.place, m.people.join(' '), m.agenda, m.discussion, m.decisions].join(' ').toLowerCase().includes(q));
+  if (q){
+    const qd = q.replace(/[^0-9]/g, '');
+    list = list.filter(m => {
+      const hay = [m.title, m.place, m.people.join(' '), m.agenda, m.discussion, m.decisions, dateHay(m.meet_date), m.meet_time].join(' ').toLowerCase();
+      if (hay.includes(q)) return true;
+      return qd.length >= 2 && (m.meet_date || '').replace(/-/g, '').includes(qd);
+    });
+  }
   return `<div class="page">
     <div class="ph"><div><h1>메모</h1><div class="sub">내가 쓴 미팅 · 회의 기록과 현장 사진 — 나만 볼 수 있습니다</div></div>
       <div class="acts"><button class="btn primary" data-act="memNew">${ic('plus')}새 메모</button></div></div>
-    <div class="filters"><div class="search">${ic('search')}<label class="sr" for="mq">검색</label><input class="in" id="mq" data-filter="mq" placeholder="제목 · 참석자 · 내용 검색" value="${esc(S.f.mq)}"></div><span class="hint">${list.length}건</span></div>
+    <div class="filters"><div class="search">${ic('search')}<label class="sr" for="mq">검색</label><input class="in" id="mq" data-filter="mq" placeholder="제목 · 참석자 · 내용 · 일자 검색 (예: 2026-09-13, 9/13)" value="${esc(S.f.mq)}"></div><span class="hint">${list.length}건</span></div>
     <div class="mgrid" id="mgrid">${list.length ? list.map(memCard).join('') : `<div class="panel empty">${S.meetings.length ? '검색 결과가 없습니다' : '아직 메모가 없습니다. <b>새 메모</b>를 눌러 시작하세요.'}</div>`}</div>
   </div>`;
 }
@@ -1021,6 +1037,9 @@ function viewSoon(t, a, b){
   return `<div class="page"><div class="ph"><div><h1>${t}</h1><div class="sub">준비 중</div></div></div>
     <section class="panel empty" style="padding:40px 20px"><b style="color:var(--ink);font-size:15px">${a}</b><br><span class="hint">${b}</span></section></div>`;
 }
+function miniDelBtn(act, id){
+  return `<button class="btn sm quiet rmini" data-act="${act}" data-id="${esc(id)}" title="삭제" aria-label="삭제">${ic('trash')}</button>`;
+}
 function viewHome(){
   const u = S.me, now = new Date(), today = TODAY();
   const reps = S.reports;
@@ -1048,7 +1067,7 @@ function viewHome(){
   }
 
   const recentCard = `<section class="panel"><div class="panel-h"><h2>최근 내 보고서</h2>${reps && reps.length ? `<button class="btn sm quiet" data-act="go" data-to="reports">전체 보기</button>` : ''}</div>
-    <div class="mini">${recent.length ? recent.map(r => `<button class="it" data-act="repOpen" data-id="${esc(r.id)}"><div class="tx"><b>${esc(r.place || '장소 미입력')} · ${esc(r.main_task || '주요업무 미입력')}</b><span>${fmtRow(r.report_date)}</span></div>${reportPill(r)}</button>`).join('')
+    <div class="mini">${recent.length ? recent.map(r => `<div class="it"><button class="open" data-act="repOpen" data-id="${esc(r.id)}"><div class="tx"><b>${esc(r.place || '장소 미입력')} · ${esc(r.main_task || '주요업무 미입력')}</b><span>${fmtRow(r.report_date)}</span></div>${reportPill(r)}</button>${miniDelBtn('homeRepDel', r.id)}</div>`).join('')
       : `<div class="empty">${reps === null ? '불러오는 중…' : '아직 지난 보고서가 없습니다'}</div>`}</div></section>`;
 
   const teamCard = isAdmin() && reps ? (() => {
@@ -1060,26 +1079,17 @@ function viewHome(){
         return `<div class="it" style="cursor:${rr?'pointer':'default'}" ${rr?`data-act="repOpen" data-id="${esc(rr.id)}"`:''}><div class="av">${esc((x.name||'?')[0])}</div><div class="tx"><b>${esc(x.name)} ${esc(x.title||'')}</b><span>${rr ? esc((rr.place||'장소 미입력')+' · '+(rr.main_task||'주요업무 미입력')) : esc(x.dept||'')}</span></div>${reportPill(rr)}</div>`; }).join('')}</div></section>`;
   })() : '';
 
-  const checks = [
-    ['로그인 · 2단계 인증', true, '비밀번호 + 인증 앱으로 들어왔어요'],
-    ['메일 수신자', S.mail && S.mail.length > 0, S.mail ? `${S.mail.length}명` : '불러오는 중'],
-    ['문자 수신자', S.sms && S.sms.length > 0, S.sms ? `${S.sms.length}명` : '불러오는 중'],
-  ];
-  const readyCard = `<section class="panel"><div class="panel-h"><h2>보고 준비</h2><span class="hint">${VERSION}</span></div>
-    <div class="mini">${checks.map(([t,ok,d]) => `<div class="it" style="cursor:default"><div class="ico-s ${ok?'ok':''}">${ic(ok?'check':'clock')}</div><div class="tx"><b>${t}</b><span>${esc(d)}</span></div></div>`).join('')}</div>
-    ${isAdmin() && !(S.mail && S.mail.length && S.sms && S.sms.length) ? `<div class="panel-b" style="border-top:1px solid var(--line)"><button class="btn sm" data-act="go" data-to="settings" data-tab="mail">${ic('plus')}수신자 등록하러 가기</button></div>` : ''}</section>`;
-
   const mems = S.meetings;
   const recentMem = mems ? mems.slice(0, 3) : [];
   const memCardP = `<section class="panel"><div class="panel-h"><h2>최근 메모</h2><button class="btn sm quiet" data-act="go" data-to="meetings">${ic('plus')}새 메모</button></div>
-    <div class="mini">${recentMem.length ? recentMem.map(m => `<button class="it" data-act="memOpen" data-id="${esc(m.id)}"><div class="tx"><b>${esc(m.title || '제목 없음')}</b><span>${fmtRow(m.meet_date)} ${esc(m.meet_time)}${m.place ? ' · ' + esc(m.place) : ''}</span></div>${(m.photos||[]).length ? `<span class="pill plain">사진 ${(m.photos||[]).length}</span>` : ''}</button>`).join('')
+    <div class="mini">${recentMem.length ? recentMem.map(m => `<div class="it"><button class="open" data-act="memOpen" data-id="${esc(m.id)}"><div class="tx"><b>${esc(m.title || '제목 없음')}</b><span>${fmtRow(m.meet_date)} ${esc(m.meet_time)}${m.place ? ' · ' + esc(m.place) : ''}</span></div>${(m.photos||[]).length ? `<span class="pill plain">사진 ${(m.photos||[]).length}</span>` : ''}</button>${miniDelBtn('homeMemDel', m.id)}</div>`).join('')
       : `<div class="empty">${mems === null ? '불러오는 중…' : '아직 메모가 없습니다'}</div>`}</div></section>`;
 
   return `<div class="page">
     <div class="ph"><div><h1>${fmtLong(now)}</h1><div class="sub">${esc(u.name)} ${esc(u.title)} · ${esc(u.dept)}</div></div></div>
     <div class="hgrid">
       <div class="stack">${todayCard}${teamCard}</div>
-      <div class="stack">${recentCard}${memCardP}${readyCard}</div>
+      <div class="stack">${recentCard}${memCardP}</div>
     </div>
   </div>`;
 }
@@ -1278,6 +1288,25 @@ document.addEventListener('click', async e => {
         }
         S.mcur = null; S.route = 'meetings'; render(); toast('메모를 삭제했어요'); break; }
       case 'memToReport': await memoToReport(); break;
+      case 'homeRepDel': {
+        if (!armed(t, '정말 삭제')) break;
+        const id = t.dataset.id;
+        const { data, error } = await busy(sb.from('reports').delete().eq('id', id).select('id'));
+        if (error || !data || !data.length) throw new Error(error ? dbMsg(error) : '삭제하지 못했습니다');
+        S.reports = (S.reports || []).filter(x => x.id !== id);
+        if (S.rcur && S.rcur.id === id){ clearTimeout(saveT); S.rcur = null; S.rid = null; }
+        render(); toast('보고서를 삭제했어요'); break; }
+      case 'homeMemDel': {
+        if (!armed(t, '정말 삭제')) break;
+        const id = t.dataset.id;
+        const hit = (S.meetings || []).find(x => x.id === id);
+        const paths = hit ? (hit.photos || []).map(p => p.path) : [];
+        const { data, error } = await busy(sb.from('meetings').delete().eq('id', id).select('id'));
+        if (error || !data || !data.length) throw new Error(error ? dbMsg(error) : '삭제하지 못했습니다');
+        if (paths.length) await sb.storage.from(BUCKET).remove(paths).catch(() => null);
+        S.meetings = (S.meetings || []).filter(x => x.id !== id);
+        if (S.mcur && S.mcur.id === id){ clearTimeout(mSaveT); S.mcur = null; }
+        render(); toast('메모를 삭제했어요'); break; }
       case 'chipDel': { const m = S.mcur; m.people.splice(+t.dataset.i, 1); $('#chips').innerHTML = chipsHTML(m); $('#chipIn').focus(); queueMemoSave(); break; }
       case 'todoAdd': { const m = S.mcur; m.todos.push({ id:uid(), t:'', o:'', d:'', k:false }); $('#todos').innerHTML = todosHTML(m);
         const all = $$('#todos .tx'); if (all.length) all[all.length-1].focus(); queueMemoSave(); break; }

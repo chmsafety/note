@@ -3,7 +3,7 @@
    ════════════════════════════════════════════════════════════════ */
 (function(){
 'use strict';
-const VERSION = 'note 1.1 · 2026-09-14';
+const VERSION = 'note 1.2 · 2026-09-14';
 
 /* ───────── 유틸 ───────── */
 const $ = (s, el=document) => el.querySelector(s);
@@ -917,6 +917,13 @@ function dateHay(iso){
     `${M}/${D}`, `${mo}/${d}`, `${M}월 ${D}일`, `${M}월${D}일`, `${mo}-${d}`, `${mo}.${d}`,
     ['일','월','화','수','목','금','토'][dObj(iso).getDay()] + '요일', relDay(iso)].join(' ');
 }
+function memMatch(m, q){
+  if (!q) return true;
+  const hay = [m.title, m.place, m.people.join(' '), m.agenda, m.discussion, m.decisions, dateHay(m.meet_date), m.meet_time].join(' ').toLowerCase();
+  if (hay.includes(q)) return true;
+  const qd = q.replace(/[^0-9]/g, '');
+  return qd.length >= 2 && (m.meet_date || '').replace(/-/g, '').includes(qd);
+}
 function memCard(m){
   const done = m.todos.filter(t => t.k).length;
   const ph = (m.photos || []);
@@ -934,14 +941,7 @@ function viewMemos(){
   if (S.meetings === null) return `<div class="page"><div class="ph"><div><h1>메모</h1></div></div><section class="panel empty">불러오는 중…</section></div>`;
   const q = S.f.mq.trim().toLowerCase();
   let list = S.meetings.slice();
-  if (q){
-    const qd = q.replace(/[^0-9]/g, '');
-    list = list.filter(m => {
-      const hay = [m.title, m.place, m.people.join(' '), m.agenda, m.discussion, m.decisions, dateHay(m.meet_date), m.meet_time].join(' ').toLowerCase();
-      if (hay.includes(q)) return true;
-      return qd.length >= 2 && (m.meet_date || '').replace(/-/g, '').includes(qd);
-    });
-  }
+  if (q) list = list.filter(m => memMatch(m, q));
   return `<div class="page">
     <div class="ph"><div><h1>메모</h1><div class="sub">내가 쓴 미팅 · 회의 기록과 현장 사진 — 나만 볼 수 있습니다</div></div>
       <div class="acts"><button class="btn primary" data-act="memNew">${ic('plus')}새 메모</button></div></div>
@@ -1596,7 +1596,7 @@ document.addEventListener('input', e => {
   if (t.dataset && t.dataset.filter === 'mq'){ S.f.mq = t.value;
     const g = $('#mgrid');
     if (g){ const q = t.value.trim().toLowerCase();
-      let list = (S.meetings||[]).filter(m => !q || [m.title,m.place,m.people.join(' '),m.agenda,m.discussion,m.decisions].join(' ').toLowerCase().includes(q));
+      let list = (S.meetings||[]).filter(m => memMatch(m, q));
       g.innerHTML = list.length ? list.map(memCard).join('') : '<div class="panel empty">검색 결과가 없습니다</div>';
       const c = $('.filters .hint'); if (c) c.textContent = `${list.length}건`; }
     return; }

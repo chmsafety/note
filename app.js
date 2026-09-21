@@ -3,7 +3,7 @@
    ════════════════════════════════════════════════════════════════ */
 (function(){
 'use strict';
-const VERSION = 'note 1.2 · 2026-09-14';
+const VERSION = 'note 1.3 · 2026-09-21';
 
 /* ───────── 유틸 ───────── */
 const $ = (s, el=document) => el.querySelector(s);
@@ -876,7 +876,7 @@ function viewReportEdit(){
         <section class="sec"><div class="sec-h"><h3>1. 개요</h3></div>
           <div class="fgrid">
             <div class="field"><label for="r-date">일자</label><input class="in" type="date" id="r-date" data-rf="report_date" value="${esc(r.report_date)}" ${dis}></div>
-            <div class="field"><label for="r-place" class="req">장소</label><input class="in" id="r-place" data-rf="place" value="${esc(r.place)}" maxlength="120" placeholder="예: 판교 테크원" ${dis}></div>
+            <div class="field"><label for="r-place" class="req">장소</label><div class="inrow"><input class="in" id="r-place" data-rf="place" value="${esc(r.place)}" maxlength="120" placeholder="예: 판교 테크원" ${dis}>${geoBtn('r-place', !mine)}</div></div>
             <div class="field"><label for="r-au">작성자</label><input class="in" id="r-au" value="${esc(authorOf(r))}" readonly></div>
             <div class="field"><label for="r-task" class="req">주요업무</label><input class="in" id="r-task" data-rf="main_task" value="${esc(r.main_task)}" maxlength="200" placeholder="예: 정기 설비 점검" ${dis}></div>
             <div class="field full"><label for="r-att">참석자</label><input class="in" id="r-att" data-rf="attendees" value="${esc(r.attendees)}" maxlength="300" placeholder="이름 · 직책, 쉼표로 구분" ${dis}></div>
@@ -990,7 +990,7 @@ function viewMemoEdit(){
         <div class="fgrid">
           <div class="field"><label for="m-date">일자</label><input class="in" type="date" id="m-date" data-mf="meet_date" value="${esc(m.meet_date)}"></div>
           <div class="field"><label for="m-time">시간</label><input class="in" type="time" id="m-time" data-mf="meet_time" value="${esc(m.meet_time)}"></div>
-          <div class="field full"><label for="m-place">장소</label><input class="in" id="m-place" data-mf="place" value="${esc(m.place)}" maxlength="120" placeholder="예: 판교 테크원 시설관리사무소"></div>
+          <div class="field full"><label for="m-place">장소</label><div class="inrow"><input class="in" id="m-place" data-mf="place" value="${esc(m.place)}" maxlength="120" placeholder="예: 판교 테크원 시설관리사무소">${geoBtn('m-place', false)}</div></div>
           <div class="field full"><label for="chipIn">참석자</label><div class="chips" id="chips">${chipsHTML(m)}</div><span class="hint">이름을 적고 Enter 또는 쉼표</span></div>
         </div>
         <div class="field"><label for="m-agenda">안건</label><textarea class="in" id="m-agenda" rows="3" data-mf="agenda" maxlength="3000">${esc(m.agenda)}</textarea></div>
@@ -1224,6 +1224,81 @@ async function openSettingsTab(tab){
   if (tab === 'mail' || tab === 'sms'){ await busy(Promise.all([loadRcpt(tab), loadSettings()])); if (S.stab === tab) render(); }
 }
 
+/* ── 현재 위치로 장소 채우기 (v8) ─────────────────────────
+   좌표는 저장하지 않습니다. 주소 글자만 장소 칸에 넣습니다. */
+function geoBtn(id, disabled){
+  return `<button type="button" class="btn geo" data-act="geoPlace" data-for="${id}"${disabled ? ' disabled' : ''} title="지금 있는 곳의 주소를 장소 칸에 넣습니다">${ic('pin')}현재 위치</button>`;
+}
+
+function geoCoords(){
+  return new Promise((ok, no) => {
+    if (!navigator.geolocation || !window.isSecureContext) return no(new Error('이 기기에서는 위치를 쓸 수 없어요'));
+    navigator.geolocation.getCurrentPosition(
+      p => ok(p.coords),
+      err => no(new Error(
+        err.code === 1 ? '위치 권한이 꺼져 있어요. 브라우저 주소창의 자물쇠 › 위치를 «허용»으로 바꿔 주세요'
+      : err.code === 3 ? '위치를 찾는 데 시간이 너무 걸려요. 잠시 뒤 다시 눌러 주세요'
+      : '위치를 가져오지 못했어요')),
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+    );
+  });
+}
+
+/* 좌표 → 한글 주소 (OpenStreetMap Nominatim) */
+async function geoAddress(lat, lon){
+  const u = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1&accept-language=ko'
+          + '&lat=' + encodeURIComponent(lat.toFixed(6)) + '&lon=' + encodeURIComponent(lon.toFixed(6));
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 9000);
+  let j;
+  try {
+    const res = await fetch(u, { signal: ctl.signal, headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error('reverse ' + res.status);
+    j = await res.json();
+  } finally { clearTimeout(timer); }
+
+  const a = (j && j.address) || {};
+  const parts = [
+    a.state || a.province,
+    a.city || a.county,
+    a.city_district || a.borough,
+    a.suburb || a.town || a.village || a.neighbourhood || a.quarter,
+    a.road,
+    a.house_number
+  ];
+  const seen = new Set(), out = [];
+  parts.forEach(x => { x = (x || '').trim(); if (x && !seen.has(x)){ seen.add(x); out.push(x); } });
+
+  let txt = out.join(' ').trim();
+  if (!txt && j && j.display_name){
+    txt = String(j.display_name).split(',').map(s => s.trim())
+      .filter(s => s && s !== '대한민국' && !/^\d{5}$/.test(s)).reverse().join(' ');
+  }
+  const spot = (j && j.name) || a.building || a.amenity || a.office || a.shop || '';
+  if (spot && !seen.has(spot.trim())) txt = (txt + ' ' + spot).trim();
+  return txt;
+}
+
+async function fillPlace(btn){
+  const el = document.getElementById(btn.dataset.for || '');
+  if (!el || el.disabled) return;
+  const old = btn.innerHTML;
+  btn.disabled = true; btn.classList.add('load'); btn.innerHTML = ic('pin') + '찾는 중…';
+  try {
+    const c = await geoCoords();
+    let txt = '';
+    try { txt = await geoAddress(c.latitude, c.longitude); } catch (_){ txt = ''; }
+    if (!txt){ toast('주소를 찾지 못했어요. 장소를 직접 적어 주세요'); return; }
+    el.value = txt.slice(0, 120);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    toast('현재 위치를 넣었어요');
+  } catch (err){
+    toast((err && err.message) || '위치를 가져오지 못했어요');
+  } finally {
+    btn.innerHTML = old; btn.classList.remove('load'); btn.disabled = false;
+  }
+}
+
 document.addEventListener('click', async e => {
   const t = e.target.closest('[data-act]'); if (!t) return;
   const a = t.dataset.act;
@@ -1270,6 +1345,7 @@ document.addEventListener('click', async e => {
         const ed = $('.editor');
         if (ed){ ed.dataset.pane = S.pane; $$('.eseg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === S.pane)); refreshPreview(); $('#main').scrollTop = 0; }
         break; }
+      case 'geoPlace': await fillPlace(t); break;
       case 'rFilter': S.f[t.dataset.k] = t.dataset.v; render(); break;
 
       /* ── 메모 ── */

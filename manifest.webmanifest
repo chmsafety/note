@@ -1,7 +1,7 @@
 {
   "name": "note — 현장활동보고 · 메모",
   "short_name": "note",
-  "id": "./",
+  "id": "/note/",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

@@ -508,3 +508,44 @@ details[open] summary{margin-bottom:8px}
 .btn.geo.load svg.i{animation:geoPulse 1.1s ease-in-out infinite}
 @keyframes geoPulse{0%,100%{opacity:1}50%{opacity:.35}}
 @media (max-width:560px){.btn.geo{padding:0 10px;font-size:12.5px}}
+
+/* 메모 구분 (업무 / 개인) — v9 */
+:root{--pers:#2F66C8;--pers-soft:#E1EAFA}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--pers:#8DB2F2;--pers-soft:#18253D}}
+:root[data-theme="dark"]{--pers:#8DB2F2;--pers-soft:#18253D}
+.pill.kind{height:20px;padding:0 7px;font-size:11px}
+.pill.kind::before{display:none}
+.pill.kind.work{background:var(--accent-soft);color:var(--accent-ink)}
+.pill.kind.pers{background:var(--pers-soft);color:var(--pers)}
+.mcard .when .wl{display:inline-flex;align-items:center;gap:6px;min-width:0}
+.mini .tx b .pill.kind{vertical-align:1px;margin-right:2px}
+.mkseg .n{font:500 11px var(--mono);opacity:.7;margin-left:2px}
+
+/* 세그먼트 단추 (보고서 상태 · 메모 구분 · 계정 권한 공통) */
+.seg{display:inline-flex;flex-wrap:wrap;gap:2px;padding:3px;border-radius:10px;background:var(--surface-3);border:1px solid var(--line)}
+.seg button{appearance:none;border:0;background:none;min-height:32px;padding:0 12px;border-radius:7px;font:inherit;font-size:13px;font-weight:500;color:var(--ink-2);cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
+.seg button:hover{color:var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:700;box-shadow:0 1px 2px rgba(20,32,28,.12)}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.mkind{align-self:flex-start}
+.mkind button{min-width:64px;justify-content:center}
+.mkind button[data-v="work"][aria-pressed="true"]{color:var(--accent-ink)}
+.mkind button[data-v="personal"][aria-pressed="true"]{color:var(--pers)}
+/* 개인 메모 비밀번호 입력판 — v10 */
+.pinwrap{padding:28px 16px}
+.pinpad{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;max-width:300px;margin:0 auto}
+.pin-ic{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--pers-soft);color:var(--pers)}
+.pin-ic .i{width:22px;height:22px}
+.pin-t{font-size:16px}
+.pin-dots{display:flex;gap:14px;margin:10px 0 2px}
+.pin-dots i{width:14px;height:14px;border-radius:50%;border:2px solid var(--line-2);transition:background .12s,border-color .12s}
+.pin-dots i.on{background:var(--ink);border-color:var(--ink)}
+.pin-dots.bad i{border-color:var(--danger)}
+.pinpad .errtx{min-height:18px;font-size:12.5px}
+.pin-keys{display:grid;grid-template-columns:repeat(3,64px);gap:10px;margin:4px 0 6px}
+.pin-keys button{height:56px;border-radius:14px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:600 20px var(--mono);cursor:pointer;display:grid;place-items:center;touch-action:manipulation}
+.pin-keys button:active{background:var(--surface-3)}
+.pin-keys button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.pin-keys .i{width:22px;height:22px}
+#pinbox .pinpad{padding:4px 0}
+

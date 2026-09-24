@@ -3,7 +3,7 @@
    ════════════════════════════════════════════════════════════════ */
 (function(){
 'use strict';
-const VERSION = 'note 1.3 · 2026-09-21';
+const VERSION = 'note 1.5 · 2026-09-24';
 
 /* ───────── 유틸 ───────── */
 const $ = (s, el=document) => el.querySelector(s);
@@ -43,6 +43,8 @@ const ICON = {
   mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 6.5 8.5 7 8.5-7"/>',
   shield:'<path d="M12 3 5 6v6c0 4.4 3 7.4 7 9 4-1.6 7-4.6 7-9V6z"/><path d="m9 12 2.2 2.2L15.2 10"/>',
   lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  unlock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.6-1.7"/>',
+  bksp:'<path d="M9 5h11v14H9l-6-7z"/><path d="m12 9.5 5 5M17 9.5l-5 5"/>',
   logout:'<path d="M14.5 4h4.5v16h-4.5M10 8l-4 4 4 4M6 12h9.5"/>',
   trash:'<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/>',
   alert:'<path d="M12 4 2.8 19.5h18.4z"/><path d="M12 10v4.5M12 17h.01"/>',
@@ -72,7 +74,7 @@ const S = {
   users:null, mail:null, sms:null, settings:{},
   reports:null, rid:null, rcur:null, pane:'form', saved:'',
   meetings:null, mcur:null, photos:[], urls:{}, lb:null, sends:null, pub:null, pubToken:'',
-  f:{ rMonth:'all', rStatus:'all', rAuthor:'all', mq:'' },
+  f:{ rMonth:'all', rStatus:'all', rAuthor:'all', mq:'', mk:'all' },
   err:'',
 };
 const isAdmin = () => S.me && S.me.role === 'admin' && S.me.active;
@@ -170,10 +172,10 @@ async function preload(){
   await Promise.all([loadSettings(), loadRcpt('mail'), loadRcpt('sms'), loadReports(), loadMemos(), isAdmin() ? loadUsers() : null]);
   if (S.screen === 'app') render();
 }
-function toLogin(msg){ clearTimeout(saveT); S.screen = 'login'; S.err = msg || ''; S.me = null; S.users = S.mail = S.sms = S.reports = S.meetings = null;
+function toLogin(msg){ clearTimeout(saveT); S.screen = 'login'; S.err = msg || ''; S.me = null; S.users = S.mail = S.sms = S.reports = S.meetings = null; S.pin = null; S.pp = null;
   S.route = 'home'; S.stab = 'me'; S.reEnroll = null; S.factors = []; S.rcur = null; S.rid = null; S.pane = 'form'; S.saved = '';
   S.mcur = null; S.lb = null; S.photos = []; S.urls = {}; S.sends = null; S.pub = null; clearTimeout(mSaveT);
-  S.f = { rMonth:'all', rStatus:'all', rAuthor:'all', mq:'' }; closeOv(); render(); }
+  S.f = { rMonth:'all', rStatus:'all', rAuthor:'all', mq:'', mk:'all' }; closeOv(); render(); }
 async function logout(){ try { await sb.auth.signOut({ scope:'local' }); } catch(e){} toLogin(''); }
 
 async function loadSettings(){ const { data } = await sb.from('app_settings').select('key,value'); S.settings = Object.fromEntries((data||[]).map(r => [r.key, r.value])); }
@@ -351,12 +353,13 @@ async function openPublic(token){
 }
 
 /* ───────── 메모 : 데이터 ───────── */
-const MEM_COLS = 'id,author,title,meet_date,meet_time,place,people,agenda,discussion,decisions,todos,created_at,updated_at';
+const MEM_COLS = 'id,author,kind,title,meet_date,meet_time,place,people,agenda,discussion,decisions,todos,created_at,updated_at';
 const BUCKET = 'meeting-photos';
 
 function fixMemo(m){
   const arr = v => Array.isArray(v) ? v : [];
   return Object.assign({}, m, {
+    kind:   m.kind === 'personal' ? 'personal' : 'work',
     people: arr(m.people).map(x => String(x ?? '')).filter(Boolean),
     todos:  arr(m.todos).map(t => ({ id:String(t.id || uid()), t:String(t.t ?? ''), o:String(t.o ?? ''), d:String(t.d ?? ''), k:!!t.k })),
   });
@@ -364,7 +367,100 @@ function fixMemo(m){
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'x' + Math.random().toString(36).slice(2) + Date.now().toString(36));
 const memById = id => (S.meetings || []).find(m => m.id === id);
 
+/* ── 개인 메모 잠금 (숫자 4자리) — 막는 건 서버(RLS). 화면은 상태만 따라감 ── */
+const pinOpen = () => !!(S.pin && S.pin.until && Date.now() < S.pin.until);
+function setPin(d){
+  const t = v => v ? Date.parse(v) : 0;
+  S.pin = { has:!!(d && d.has_pin), until:t(d && d.until), locked:t(d && d.locked_until), count:+(d && d.personal_count) || 0 };
+}
+async function pinStatus(){
+  const { data, error } = await sb.rpc('memo_pin_status');
+  if (error){ S.pin = S.pin || { has:false, until:0, locked:0, count:0 }; S.pin.err = dbMsg(error); return; }
+  setPin(data);
+}
+let kaAt = 0;
+function pinKeepalive(force){
+  if (!pinOpen() || (!force && Date.now() - kaAt < 60000)) return;
+  kaAt = Date.now();
+  sb.rpc('memo_keepalive').then(({ data }) => { if (data && data.until && S.pin) S.pin.until = Date.parse(data.until); });
+}
+function pinLocalLock(msg){
+  if (!S.pin) return;
+  S.pin.until = 0;
+  if (S.meetings){ S.pin.count = S.meetings.filter(m => m.kind === 'personal').length || S.pin.count; S.meetings = S.meetings.filter(m => m.kind !== 'personal'); }
+  if (S.route === 'memo' && S.mcur && S.mcur.kind === 'personal'){ clearTimeout(mSaveT); S.mcur = null; S.route = 'meetings'; }
+  if (S.lb) S.lb = null;
+  if (S.pp && S.pp.after !== 'chg') { S.pp = null; closeOv(); }
+  if (S.screen === 'app') render();
+  if (msg) toast(msg);
+}
+async function pinLock(){
+  pinLocalLock('개인 메모를 잠갔어요');
+  const { error } = await sb.rpc('memo_lock'); if (error) toast(dbMsg(error));
+}
+setInterval(() => { if (S.pin && S.pin.until && Date.now() >= S.pin.until) pinLocalLock('15분 동안 쓰지 않아 개인 메모를 잠갔어요'); }, 15000);
+
+/* 숫자 입력판 — S.pp = { mode:'unlock'|'set1'|'set2'|'chg0', buf, first, old, err, after:'reload'|'kind'|'chg', ov } */
+function pinStart(after, ov){
+  const has = S.pin && S.pin.has;
+  S.pp = { mode: after === 'chg' && has ? 'chg0' : has ? 'unlock' : 'set1', buf:'', first:'', old:'', err:'', after, ov:!!ov };
+  if (ov) openOv(dlg(after === 'chg' ? '개인 메모 비밀번호' : '개인 메모 열기', `<div id="pinbox">${pinBody()}</div>`, `<button class="btn" data-act="closeOv">취소</button>`));
+}
+function pinBody(){
+  const p = S.pp; if (!p) return '';
+  const T = { unlock:['개인 메모 비밀번호','숫자 4자리를 누르세요'], chg0:['지금 비밀번호','바꾸려면 먼저 지금 비밀번호를 누르세요'],
+    set1:[p.after === 'chg' && S.pin && S.pin.has ? '새 비밀번호' : '개인 메모 비밀번호 만들기','개인 메모를 열 때 쓸 숫자 4자리를 정하세요'], set2:['한 번 더','같은 숫자 4자리를 다시 누르세요'] }[p.mode];
+  const lk = S.pin && S.pin.locked > Date.now();
+  return `<div class="pinpad" role="group" aria-label="${T[0]}">
+    <div class="pin-ic">${ic('lock')}</div><b class="pin-t">${T[0]}</b><span class="hint">${T[1]}</span>
+    <div class="pin-dots ${p.err ? 'bad' : ''}" aria-live="polite" aria-label="${p.buf.length}자리 입력됨">${[0,1,2,3].map(i => `<i class="${i < p.buf.length ? 'on' : ''}"></i>`).join('')}</div>
+    <div class="errtx" role="alert">${esc(p.err || (lk ? '너무 많이 틀려서 잠시 막혀 있어요' : ''))}</div>
+    <div class="pin-keys">${['1','2','3','4','5','6','7','8','9','','0','del'].map(k => k === '' ? '<span></span>'
+      : `<button type="button" data-act="pinKey" data-v="${k}" ${k === 'del' ? 'aria-label="지우기"' : ''}>${k === 'del' ? ic('bksp') : k}</button>`).join('')}</div>
+    ${p.mode === 'unlock' || p.mode === 'chg0' ? '<span class="hint">잊어버렸으면 관리자에게 초기화를 부탁하세요 — 메모는 그대로 남습니다</span>' : ''}
+  </div>`;
+}
+function pinPaint(){ const b = $('#pinbox'); if (b) b.innerHTML = pinBody(); }
+async function pinKey(k){
+  const p = S.pp; if (!p) return;
+  if (k === 'del'){ p.buf = p.buf.slice(0, -1); p.err = ''; return pinPaint(); }
+  if (!/^\d$/.test(k) || p.buf.length >= 4) return;
+  p.buf += k; p.err = ''; pinPaint();
+  if (p.buf.length < 4) return;
+  const v = p.buf; p.buf = '';
+  if (p.mode === 'chg0'){ p.old = v; p.mode = 'set1'; return pinPaint(); }
+  if (p.mode === 'set1'){ p.first = v; p.mode = 'set2'; return pinPaint(); }
+  let res;
+  if (p.mode === 'set2'){
+    if (v !== p.first){ p.mode = 'set1'; p.first = ''; p.err = '두 번 누른 숫자가 달라요. 처음부터 다시 정해 주세요'; return pinPaint(); }
+    const { data, error } = await busy(sb.rpc('memo_pin_set', { p_new:v, p_old:p.old || null }));
+    if (error){ p.err = dbMsg(error); p.mode = 'set1'; return pinPaint(); }
+    res = data;
+    if (!res.ok){ p.err = res.error; p.mode = res.old ? 'chg0' : 'set1'; p.first = ''; return pinPaint(); }
+  } else {
+    const { data, error } = await busy(sb.rpc('memo_unlock', { p_pin:v }));
+    if (error){ p.err = dbMsg(error); return pinPaint(); }
+    res = data;
+    if (!res.ok){ p.err = res.error; if (/막/.test(res.error)) await pinStatus(); return pinPaint(); }
+  }
+  S.pin.has = true; S.pin.until = Date.parse(res.until); S.pin.locked = 0; kaAt = Date.now();
+  const after = p.after; S.pp = null; closeOv();
+  if (after === 'chg'){ render(); return toast(p.mode === 'set2' && p.old ? '개인 메모 비밀번호를 바꿨어요' : '개인 메모 비밀번호를 만들었어요'); }
+  if (after === 'kind'){ memSetKind('personal'); return toast('개인 메모로 바꿨어요'); }
+  await busy(loadMemos()); render();
+  signPhotos((S.meetings || []).flatMap(m => (m.photos||[]).slice(0,3).map(x => x.path))).then(() => { if (S.route === 'meetings') render(); });
+}
+function memSetKind(v){
+  const m = S.mcur; if (!m) return;
+  m.kind = v === 'personal' ? 'personal' : 'work';
+  $$('.mkind button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === m.kind));
+  const h = $('#mkind-h');
+  if (h) h.textContent = m.kind === 'personal' ? '개인 메모 — 비밀번호로 잠기고, 현장활동보고서로 옮기지 않습니다' : '업무 메모 — 결정 사항을 현장활동보고서에 넣을 수 있습니다';
+  paintRepBtn(); queueMemoSave();
+}
+
 async function loadMemos(){
+  await pinStatus();
   const { data, error } = await sb.from('meetings').select(MEM_COLS)
     .order('meet_date', { ascending:false }).order('meet_time', { ascending:false }).limit(400);
   if (error){ toast(dbMsg(error)); if (!S.meetings) S.meetings = []; return; }
@@ -378,11 +474,11 @@ async function loadMemos(){
 }
 function newMemo(){
   const now = new Date();
-  return { id:null, author:S.me.id, title:'', meet_date:TODAY(), meet_time:`${pad(now.getHours())}:${pad(now.getMinutes())}`,
+  return { id:null, author:S.me.id, kind:(S.f.mk === 'personal' && pinOpen() ? 'personal' : 'work'), title:'', meet_date:TODAY(), meet_time:`${pad(now.getHours())}:${pad(now.getMinutes())}`,
     place:'', people:[], agenda:'', discussion:'', decisions:'', todos:[], photos:[] };
 }
 function memPayload(m){
-  return { title:(m.title||'').trim().slice(0,120), meet_date:m.meet_date, meet_time:(m.meet_time||'').slice(0,5),
+  return { kind:(m.kind === 'personal' ? 'personal' : 'work'), title:(m.title||'').trim().slice(0,120), meet_date:m.meet_date, meet_time:(m.meet_time||'').slice(0,5),
     place:(m.place||'').trim().slice(0,120), people:m.people.slice(0,60),
     agenda:m.agenda||'', discussion:m.discussion||'', decisions:m.decisions||'',
     todos:m.todos.slice(0,60).map(t => ({ id:t.id, t:String(t.t||'').slice(0,200), o:String(t.o||'').slice(0,40), d:t.d||'', k:!!t.k })) };
@@ -399,7 +495,9 @@ async function saveMemo(){
   if (!m) return null;
   if (mSaving){ mPend = true; return null; }
   if (!m.meet_date){ markSaving('일자를 정해 주세요'); return null; }
+  if (m.kind === 'personal' && !pinOpen()){ markSaving('개인 메모가 잠겨 저장하지 못했어요'); return null; }
   mSaving = true; markSaving('저장 중…');
+  if (m.kind === 'personal') pinKeepalive();
   try {
     const row = memPayload(m);
     let out;
@@ -917,18 +1015,40 @@ function dateHay(iso){
     `${M}/${D}`, `${mo}/${d}`, `${M}월 ${D}일`, `${M}월${D}일`, `${mo}-${d}`, `${mo}.${d}`,
     ['일','월','화','수','목','금','토'][dObj(iso).getDay()] + '요일', relDay(iso)].join(' ');
 }
+/* 메모 구분 — 업무 / 개인 */
+const MKIND = { work:'업무', personal:'개인' };
+const kindPill = m => `<span class="pill kind ${m.kind === 'personal' ? 'pers' : 'work'}">${MKIND[m.kind] || '업무'}</span>`;
+function memList(){
+  const q = (S.f.mq || '').trim().toLowerCase(), k = S.f.mk;
+  return (S.meetings || []).filter(m => (k === 'all' || m.kind === k) && memMatch(m, q));
+}
+function memRepBtn(m){
+  if (m.kind === 'personal') return { dis:true, title:'개인 메모는 현장활동보고서에 넣지 않습니다' };
+  if (!(m.decisions || '').trim()) return { dis:true, title:'결정 사항을 먼저 적어 주세요' };
+  const same = (S.reports || []).find(r => r.author === S.me.id && r.report_date === m.meet_date);
+  return { dis:false, title: same ? '그날 보고서의 주요 업무/결과에 붙입니다' : '그날 보고서를 새로 만들어 붙입니다' };
+}
+function paintRepBtn(){
+  const m = S.mcur, b = $('[data-act=memToReport]'); if (!m || !b) return;
+  const st = memRepBtn(m); b.disabled = st.dis; b.title = st.title;
+}
 function memMatch(m, q){
   if (!q) return true;
-  const hay = [m.title, m.place, m.people.join(' '), m.agenda, m.discussion, m.decisions, dateHay(m.meet_date), m.meet_time].join(' ').toLowerCase();
+  const hay = [MKIND[m.kind] || '', m.title, m.place, m.people.join(' '), m.agenda, m.discussion, m.decisions, dateHay(m.meet_date), m.meet_time].join(' ').toLowerCase();
   if (hay.includes(q)) return true;
   const qd = q.replace(/[^0-9]/g, '');
   return qd.length >= 2 && (m.meet_date || '').replace(/-/g, '').includes(qd);
+}
+function memEmpty(){
+  if (!(S.meetings || []).length) return '아직 메모가 없습니다. <b>새 메모</b>를 눌러 시작하세요.';
+  if ((S.f.mq || '').trim()) return '검색 결과가 없습니다';
+  return S.f.mk === 'personal' ? '개인 메모가 없습니다' : S.f.mk === 'work' ? '업무 메모가 없습니다' : '메모가 없습니다';
 }
 function memCard(m){
   const done = m.todos.filter(t => t.k).length;
   const ph = (m.photos || []);
   return `<button class="panel mcard" data-act="memOpen" data-id="${esc(m.id)}">
-    <div class="when"><span>${fmtRow(m.meet_date)} ${esc(m.meet_time)}</span><span>${relDay(m.meet_date)}</span></div>
+    <div class="when"><span class="wl">${kindPill(m)}<span>${fmtRow(m.meet_date)} ${esc(m.meet_time)}</span></span><span>${relDay(m.meet_date)}</span></div>
     <h3>${esc(m.title || '제목 없음')}</h3>
     ${m.place ? `<div class="pl">${ic('pin')}${esc(m.place)}</div>` : ''}
     ${m.people.length ? `<div class="people">${m.people.map(p => `<span>${esc(p)}</span>`).join('')}</div>` : ''}
@@ -939,14 +1059,21 @@ function memCard(m){
 }
 function viewMemos(){
   if (S.meetings === null) return `<div class="page"><div class="ph"><div><h1>메모</h1></div></div><section class="panel empty">불러오는 중…</section></div>`;
-  const q = S.f.mq.trim().toLowerCase();
-  let list = S.meetings.slice();
-  if (q) list = list.filter(m => memMatch(m, q));
+  const list = memList(), all = S.meetings, open = pinOpen();
+  const nw = all.filter(m => m.kind === 'work').length, np = open ? all.filter(m => m.kind === 'personal').length : ((S.pin && S.pin.count) || 0);
+  const cnt = { all:nw + np, work:nw, personal:np };
+  const locked = S.f.mk === 'personal' && !open;
+  if (locked && (!S.pp || S.pp.ov)) pinStart('reload', false);
+  const lockBar = open ? `<button class="btn sm quiet" data-act="pinLock" title="개인 메모 잠그기">${ic('lock')}잠그기</button>`
+    : (S.f.mk === 'all' && np ? `<button class="btn sm quiet" data-act="rFilter" data-k="mk" data-v="personal">${ic('lock')}개인 ${np}건 잠김</button>` : '');
   return `<div class="page">
     <div class="ph"><div><h1>메모</h1><div class="sub">내가 쓴 미팅 · 회의 기록과 현장 사진 — 나만 볼 수 있습니다</div></div>
       <div class="acts"><button class="btn primary" data-act="memNew">${ic('plus')}새 메모</button></div></div>
-    <div class="filters"><div class="search">${ic('search')}<label class="sr" for="mq">검색</label><input class="in" id="mq" data-filter="mq" placeholder="제목 · 참석자 · 내용 · 일자 검색 (예: 2026-09-13, 9/13)" value="${esc(S.f.mq)}"></div><span class="hint">${list.length}건</span></div>
-    <div class="mgrid" id="mgrid">${list.length ? list.map(memCard).join('') : `<div class="panel empty">${S.meetings.length ? '검색 결과가 없습니다' : '아직 메모가 없습니다. <b>새 메모</b>를 눌러 시작하세요.'}</div>`}</div>
+    <div class="filters"><div class="search">${ic('search')}<label class="sr" for="mq">검색</label><input class="in" id="mq" data-filter="mq" placeholder="제목 · 참석자 · 내용 · 일자 검색 (예: 2026-09-13, 9/13)" value="${esc(S.f.mq)}"></div>
+      <div class="seg mkseg" role="group" aria-label="구분">${[['all','전체'],['work','업무'],['personal','개인']].map(([v,l]) => `<button data-act="rFilter" data-k="mk" data-v="${v}" aria-pressed="${S.f.mk===v}">${v === 'personal' && !open ? ic('lock') : ''}${l} <span class="n">${cnt[v]}</span></button>`).join('')}</div>
+      ${locked ? '' : `<span class="hint" id="mcount">${list.length}건</span>`}${lockBar}</div>
+    ${locked ? `<section class="panel pinwrap" id="pinbox">${pinBody()}</section>`
+      : `<div class="mgrid" id="mgrid">${list.length ? list.map(memCard).join('') : `<div class="panel empty">${memEmpty()}</div>`}</div>`}
   </div>`;
 }
 
@@ -978,14 +1105,16 @@ function todosHTML(m){
 function viewMemoEdit(){
   const m = S.mcur;
   if (!m) return `<div class="page"><div class="empty">메모를 찾을 수 없습니다</div></div>`;
-  const sameDayRep = (S.reports || []).find(r => r.author === S.me.id && r.report_date === m.meet_date);
+  const rb = memRepBtn(m);
   return `<div class="page">
     <div class="ph"><div><button class="back" data-act="go" data-to="meetings">${ic('back')}메모</button>
       <h1>${m.title ? esc(m.title) : '새 메모'}</h1><div class="sub"><span class="saved" id="saved">${esc(S.saved || '자동 저장됩니다')}</span></div></div>
       <div class="acts"><button class="btn quiet" data-act="memDel">${ic('trash')}삭제</button>
-        <button class="btn" data-act="memToReport" ${m.decisions.trim() ? '' : 'disabled'} title="${m.decisions.trim() ? (sameDayRep ? '그날 보고서의 주요 업무/결과에 붙입니다' : '그날 보고서를 새로 만들어 붙입니다') : '결정 사항을 먼저 적어 주세요'}">${ic('import')}현장활동보고서에 넣기</button></div></div>
+        <button class="btn" data-act="memToReport" ${rb.dis ? 'disabled' : ''} title="${esc(rb.title)}">${ic('import')}현장활동보고서에 넣기</button></div></div>
     <div class="medit">
       <div class="col">
+        <div class="field"><span class="lbl">구분</span><div class="seg mkind" role="group" aria-label="메모 구분">${[['work','업무'],['personal','개인']].map(([v,l]) => `<button type="button" data-act="memKind" data-v="${v}" aria-pressed="${m.kind===v}">${l}</button>`).join('')}</div>
+          <span class="hint" id="mkind-h">${m.kind === 'personal' ? '개인 메모 — 비밀번호로 잠기고, 현장활동보고서로 옮기지 않습니다' : '업무 메모 — 결정 사항을 현장활동보고서에 넣을 수 있습니다'}</span></div>
         <div class="field"><label for="m-title" class="req">제목</label><input class="in ttl-in" id="m-title" data-mf="title" value="${esc(m.title)}" maxlength="120" placeholder="예: 시범 도입 사업장 선정 미팅"></div>
         <div class="fgrid">
           <div class="field"><label for="m-date">일자</label><input class="in" type="date" id="m-date" data-mf="meet_date" value="${esc(m.meet_date)}"></div>
@@ -1082,7 +1211,7 @@ function viewHome(){
   const mems = S.meetings;
   const recentMem = mems ? mems.slice(0, 3) : [];
   const memCardP = `<section class="panel"><div class="panel-h"><h2>최근 메모</h2><button class="btn sm quiet" data-act="go" data-to="meetings">${ic('plus')}새 메모</button></div>
-    <div class="mini">${recentMem.length ? recentMem.map(m => `<div class="it"><button class="open" data-act="memOpen" data-id="${esc(m.id)}"><div class="tx"><b>${esc(m.title || '제목 없음')}</b><span>${fmtRow(m.meet_date)} ${esc(m.meet_time)}${m.place ? ' · ' + esc(m.place) : ''}</span></div>${(m.photos||[]).length ? `<span class="pill plain">사진 ${(m.photos||[]).length}</span>` : ''}</button>${miniDelBtn('homeMemDel', m.id)}</div>`).join('')
+    <div class="mini">${recentMem.length ? recentMem.map(m => `<div class="it"><button class="open" data-act="memOpen" data-id="${esc(m.id)}"><div class="tx"><b>${kindPill(m)} ${esc(m.title || '제목 없음')}</b><span>${fmtRow(m.meet_date)} ${esc(m.meet_time)}${m.place ? ' · ' + esc(m.place) : ''}</span></div>${(m.photos||[]).length ? `<span class="pill plain">사진 ${(m.photos||[]).length}</span>` : ''}</button>${miniDelBtn('homeMemDel', m.id)}</div>`).join('')
       : `<div class="empty">${mems === null ? '불러오는 중…' : '아직 메모가 없습니다'}</div>`}</div></section>`;
 
   return `<div class="page">
@@ -1120,6 +1249,11 @@ function setMe(){
       <div class="errtx" id="pw-err" role="alert"></div>
       <div><button class="btn primary" type="submit">${ic('key')}비밀번호 바꾸기</button></div>
     </form></section>
+    <section class="panel"><div class="panel-h"><h2>개인 메모 비밀번호</h2></div><div class="panel-b" style="display:flex;flex-direction:column;gap:12px">
+      <p class="hint" style="margin:0">개인 메모는 숫자 4자리를 눌러야 열립니다. 한 번 열면 15분 동안 쓸 수 있고, 쓰는 동안은 계속 열려 있습니다. 5번 틀리면 10분 동안 막힙니다.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" type="button" data-act="pinChange">${ic('lock')}${S.pin && S.pin.has ? '비밀번호 바꾸기' : S.pin ? '비밀번호 만들기' : '만들기 · 바꾸기'}</button>${pinOpen() ? `<button class="btn quiet" type="button" data-act="pinLock">지금 잠그기</button>` : ''}</div>
+      <p class="hint" style="margin:0">잊어버렸으면 관리자에게 초기화를 부탁하세요. 초기화해도 메모는 그대로이고, 관리자도 내용은 볼 수 없습니다.</p>
+    </div></section>
     <section class="panel"><div class="panel-h"><h2>앱으로 쓰기</h2></div><div class="panel-b" style="display:flex;flex-direction:column;gap:12px">
       <p class="hint" style="margin:0">홈 화면에 추가하면 주소창 없이 앱처럼 열리고, 인터넷이 잠깐 끊겨도 화면이 뜹니다.</p>
       <div><button class="btn" type="button" data-act="pwaInstall">${ic('phone')}홈 화면에 추가</button></div>
@@ -1201,6 +1335,7 @@ function acctForm(u){
       <div class="lbl">보안 조치</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" type="button" data-act="acctResetPw" data-id="${esc(u.id)}">${ic('key')}비밀번호 초기화</button>
       <button class="btn sm" type="button" data-act="acctResetMfa" data-id="${esc(u.id)}" ${u.mfa?'':'disabled'}>${ic('phone')}2단계 인증 초기화</button>
+      <button class="btn sm" type="button" data-act="acctResetPin" data-id="${esc(u.id)}">${ic('lock')}개인 메모 비밀번호 초기화</button>
       ${u.id !== S.me.id ? `<button class="btn sm ${u.active?'danger':''}" type="button" data-act="acctActive" data-id="${esc(u.id)}" data-v="${u.active?'0':'1'}">${u.active?'사용중지':'다시 사용'}</button>` : ''}</div>
       <div class="hint" id="a-msg">2단계 인증 초기화는 휴대폰을 바꾸거나 잃어버린 직원에게 씁니다.</div></div>`}
   <div class="errtx" id="a-err" role="alert"></div></form>`;
@@ -1219,6 +1354,7 @@ function toast(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = fals
 /* ───────── 동작 ───────── */
 async function openSettingsTab(tab){
   S.stab = tab; S.reEnroll = null; render();
+  if (tab === 'me' && S.pin === null){ await pinStatus(); if (S.stab === 'me') render(); }
   if (tab === 'mfa'){ const { data } = await sb.auth.mfa.listFactors(); S.factors = (data && data.totp || []).filter(f => f.status === 'verified'); if (S.stab === 'mfa') render(); }
   if (tab === 'accounts' && isAdmin()){ await busy(loadUsers()); if (S.stab === 'accounts') render(); }
   if (tab === 'mail' || tab === 'sms'){ await busy(Promise.all([loadRcpt(tab), loadSettings()])); if (S.stab === tab) render(); }
@@ -1364,6 +1500,17 @@ document.addEventListener('click', async e => {
         }
         S.mcur = null; S.route = 'meetings'; render(); toast('메모를 삭제했어요'); break; }
       case 'memToReport': await memoToReport(); break;
+      case 'memKind': { const m = S.mcur; if (!m || m.kind === t.dataset.v) break;
+        if (t.dataset.v === 'personal' && !pinOpen()){ if (S.pin === null) await busy(pinStatus()); pinStart('kind', true); break; }
+        memSetKind(t.dataset.v); break; }
+      case 'pinKey': await pinKey(t.dataset.v); break;
+      case 'pinLock': await pinLock(); break;
+      case 'pinChange': if (S.pin === null) await busy(pinStatus()); pinStart('chg', true); break;
+      case 'acctResetPin': {
+        if (!armed(t, '정말 초기화')) break;
+        const u = S.users.find(x => x.id === t.dataset.id);
+        await lockBtn(t, '초기화 중…', async () => { const { data, error } = await sb.rpc('memo_pin_reset', { p_user:u.id }); if (error) throw new Error(dbMsg(error)); return data; });
+        closeOv(); toast(`${u.name}님의 개인 메모 비밀번호를 지웠어요. 다음에 개인 메모를 열 때 새로 정합니다`); break; }
       case 'homeRepDel': {
         if (!armed(t, '정말 삭제')) break;
         const id = t.dataset.id;
@@ -1405,7 +1552,7 @@ document.addEventListener('click', async e => {
         break; }
       case 'logout': await logout(); break;
       case 'stab': await openSettingsTab(t.dataset.v); break;
-      case 'closeOv': closeOv(); break;
+      case 'closeOv': closeOv(); if (S.pp && S.pp.ov) S.pp = null; break;
       case 'mfaStart': await busy(startEnroll(true)); break;
       case 'mfaCancel': if (S.reEnroll){ await sb.auth.mfa.unenroll({ factorId:S.reEnroll.id }).catch(() => null); } S.reEnroll = null; render(); break;
       case 'acctNew': openOv(dlg('계정 추가', acctForm(null), `<button class="btn" data-act="closeOv">취소</button><button class="btn primary" type="submit" form="acct-form">계정 만들기</button>`)); break;
@@ -1463,6 +1610,7 @@ async function openMemo(id){
   if (!m){ toast('메모를 찾을 수 없습니다'); S.route = 'meetings'; render(); return; }
   S.mcur = fixMemo(m); S.mcur.photos = m.photos || [];
   S.route = 'memo'; S.saved = '자동 저장됩니다'; S.lb = null;
+  if (S.mcur.kind === 'personal') pinKeepalive(true);
   render();
   autoGrow($('#m-agenda')); autoGrow($('#m-disc')); autoGrow($('#m-dec'));
   paintPhotos();
@@ -1472,6 +1620,7 @@ async function openMemo(id){
 // 결정 사항을 같은 날 현장활동보고서의 「주요 업무/결과」에 붙입니다
 async function memoToReport(){
   const m = S.mcur; if (!m) return;
+  if (m.kind === 'personal') return toast('개인 메모는 현장활동보고서에 넣지 않습니다');
   const dec = (m.decisions || '').trim();
   if (!dec) return toast('결정 사항을 먼저 적어 주세요');
   await saveMemo();
@@ -1652,7 +1801,7 @@ document.addEventListener('input', e => {
     S.mcur[t.dataset.mf] = t.value;
     if (/agenda|discussion|decisions/.test(t.dataset.mf)) autoGrow(t);
     if (t.dataset.mf === 'title'){ const h = $('.ph h1'); if (h) h.textContent = t.value || '새 메모'; }
-    if (t.dataset.mf === 'decisions'){ const b = $('[data-act=memToReport]'); if (b){ const on = !!t.value.trim(); b.disabled = !on; b.title = on ? '그날 현장활동보고서의 주요 업무/결과에 붙입니다' : '결정 사항을 먼저 적어 주세요'; } }
+    if (t.dataset.mf === 'decisions') paintRepBtn();
     queueMemoSave(); return;
   }
   if (t.dataset && t.dataset.td && S.mcur){
@@ -1672,9 +1821,9 @@ document.addEventListener('input', e => {
   if (t.dataset && t.dataset.filter === 'mq'){ S.f.mq = t.value;
     const g = $('#mgrid');
     if (g){ const q = t.value.trim().toLowerCase();
-      let list = (S.meetings||[]).filter(m => memMatch(m, q));
-      g.innerHTML = list.length ? list.map(memCard).join('') : '<div class="panel empty">검색 결과가 없습니다</div>';
-      const c = $('.filters .hint'); if (c) c.textContent = `${list.length}건`; }
+      const list = memList(); void q;
+      g.innerHTML = list.length ? list.map(memCard).join('') : `<div class="panel empty">${memEmpty()}</div>`;
+      const c = $('#mcount'); if (c) c.textContent = `${list.length}건`; }
     return; }
   if (t.matches('.otp input')){
     t.value = t.value.replace(/\D/g,'').slice(-1);
@@ -1699,6 +1848,10 @@ function addChip(v, refocus = true){
 }
 document.addEventListener('keydown', e => {
   const t = e.target;
+  if (S.pp && $('#pinbox') && !(t.matches && t.matches('input,textarea,select'))){
+    if (/^[0-9]$/.test(e.key)){ e.preventDefault(); pinKey(e.key).catch(err => toast(err.message || String(err))); return; }
+    if (e.key === 'Backspace'){ e.preventDefault(); pinKey('del'); return; }
+  }
   if (t.matches('.otp input') && e.key === 'Backspace' && !t.value){ const i = +t.id.slice(3); if (i > 0){ const p = $('#otp'+(i-1)); p.value = ''; p.focus(); } }
   if (t.id === 'chipIn' && S.mcur){
     if (e.key === 'Enter' || e.key === ',' || (e.key === 'Tab' && t.value.trim())){ e.preventDefault(); const v = t.value; t.value = ''; addChip(v); return; }

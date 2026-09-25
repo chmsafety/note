@@ -3,7 +3,7 @@
    ════════════════════════════════════════════════════════════════ */
 (function(){
 'use strict';
-const VERSION = 'note 1.5 · 2026-09-24';
+const VERSION = 'note 1.6 · 2026-09-25';
 
 /* ───────── 유틸 ───────── */
 const $ = (s, el=document) => el.querySelector(s);
@@ -589,7 +589,7 @@ function render(){
   if (S.screen === 'login'){ const i = $('#lg-id'); if (i && !i.value) i.focus(); else { const p = $('#lg-pw'); if (p) p.focus(); } }
   if (S.screen === 'enroll'){ const c = $('#en-code'); if (c) c.focus(); }
 }
-const brand = sub => `<div class="brand"><div class="logo">note</div><div><b>note</b><small>${sub}</small></div></div>`;
+const brand = sub => `<div class="brand"><div class="logo">note</div><div><b>Daily Memo</b>${sub ? `<small>${sub}</small>` : ''}</div></div>`;
 function viewLoading(){ return `<div class="login"><div class="lcard" style="align-items:center;text-align:center">${brand('불러오는 중…')}<div class="spin" aria-label="불러오는 중"></div></div></div>`; }
 function viewSetup(){
   return `<div class="login"><div class="lcard">${brand('설치 확인')}
@@ -602,7 +602,7 @@ function viewSetup(){
 function viewLogin(){
   const last = store.get('note-last-id') || '';
   return `<div class="login"><form class="lcard" data-form="login" novalidate>
-    ${brand('현장활동보고 · 메모')}
+    ${brand('')}
     <div class="field"><label for="lg-id">아이디</label><input class="in" id="lg-id" autocomplete="username" autocapitalize="off" spellcheck="false" value="${esc(last)}"></div>
     <div class="field"><label for="lg-pw">비밀번호</label><input class="in" id="lg-pw" type="password" autocomplete="current-password"></div>
     <div class="errtx" id="lg-err" role="alert">${esc(S.err)}</div>
@@ -665,18 +665,18 @@ function viewNoProfile(){
 }
 
 /* ── 셸 ── */
-const NAV = [['home','홈','home'],['reports','현장활동보고서','doc'],['meetings','메모','note'],['settings','설정','gear']];
+const NAV = [['home','홈','home'],['meetings','메모','note'],['reports','현장활동보고서','doc'],['settings','설정','gear']];
 function shell(inner){
   const u = S.me;
   return `<div class="shell">
-  <nav class="side" aria-label="주 메뉴">${brand('현장활동보고 · 메모')}
+  <nav class="side" aria-label="주 메뉴">${brand('')}
     <div class="nav">${NAV.map(([n,l,i]) => `<button data-act="go" data-to="${n}" ${S.route===n?'aria-current="page"':''}>${ic(i)}${l}</button>`).join('')}</div>
     <div class="me"><div class="av">${esc((u.name||'?')[0])}</div><div class="who"><b>${esc(u.name)} ${esc(u.title)}</b><span>${isAdmin()?'관리자':'직원'} · ${esc(u.dept||u.login_id)}</span></div>
       <button class="iconbtn" data-act="logout" title="로그아웃" aria-label="로그아웃">${ic('logout')}</button></div>
     <span class="ver">${VERSION}</span>
   </nav>
   <main class="main" id="main">
-    <div class="mtop"><div class="logo">note</div><b>note</b><span class="pill role">${esc(u.name)} · ${isAdmin()?'관리자':'직원'}</span></div>
+    <div class="mtop"><div class="logo">note</div><b>Daily Memo</b><span class="pill role">${esc(u.name)} · ${isAdmin()?'관리자':'직원'}</span></div>
     ${inner}
   </main>
   <nav class="tabbar" aria-label="하단 메뉴">${NAV.map(([n,l,i]) => `<button data-act="go" data-to="${n}" ${S.route===n?'aria-current="page"':''}>${ic(i)}${l==='현장활동보고서'?'보고서':l}</button>`).join('')}</nav>

@@ -252,6 +252,18 @@ select.in{height:34px;padding:0 30px 0 10px;width:auto;font-size:13px}
 .a4 .re th{height:78pt;white-space:pre-line;font-size:10pt;line-height:1.4}
 .a4 .re .clip{height:65pt;font-size:10pt}
 .a4 .clip.over{box-shadow:inset 0 -2pt 0 #C98A12}
+/* A4 2쪽 — 4. 주요 사진 (1열 2장 · 4행) */
+.a4pages{display:flex;flex-direction:column;gap:14px}
+.a4.p2 .pgrid8{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8pt;margin-top:0}
+.a4.p2 .pc{display:flex;flex-direction:column;min-width:0}
+.a4.p2 .pc.none .pimg,.a4.p2 .pc.none .pcap{border-color:#D9D9D9}
+.a4.p2 .pimg{height:140pt;border:.75pt solid #000;background:#FAFAFA;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.a4.p2 .pimg img{max-width:100%;max-height:100%;width:auto;height:auto;display:block;object-fit:contain}
+.a4.p2 .pcap{height:24pt;border:.75pt solid #000;border-top:0;display:flex;align-items:center;gap:6pt;font-size:9.5pt;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:5pt}
+.a4.p2 .pcap .n{flex:none;align-self:stretch;display:flex;align-items:center;padding:0 7pt;background:#F2F2F2;border-right:.75pt solid #000;font-weight:700;font-size:9pt}
+.a4.p2 .pno{position:absolute;left:0;right:0;bottom:26pt;text-align:center;font-size:8.5pt;color:#666}
+.pit .no{position:absolute;top:6px;left:6px;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:rgba(0,0,0,.55);color:#fff;font:700 12px var(--mono);display:grid;place-items:center}
+label.btn.dis{opacity:.45;pointer-events:none}
 
 /* ── 메모 작성 ── */
 .medit{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:22px;align-items:start}
@@ -471,8 +483,10 @@ details[open] summary{margin-bottom:8px}
   .page{ padding:0!important; max-width:none!important; gap:0!important; display:block!important }
   .editor{ display:block!important; gap:0!important }
   .editor .pane-prev{ display:block!important; position:static!important; left:auto!important; top:auto!important; width:auto!important; visibility:visible!important; gap:0!important }
-  .a4wrap{ overflow:visible!important; position:static!important; width:794px!important; height:1123px!important }
-  .a4{ position:static!important; transform:none!important; box-shadow:none!important; margin:0!important; page-break-inside:avoid }
+  .a4pages{ display:block!important; gap:0!important }
+  .a4wrap{ overflow:visible!important; position:static!important; width:794px!important; height:1123px!important; page-break-after:always; break-after:page }
+  .a4wrap:last-child{ page-break-after:auto; break-after:auto }
+  .a4{ position:relative!important; transform:none!important; box-shadow:none!important; margin:0!important; page-break-inside:avoid }
   .a4 .clip.over{ box-shadow:none!important }
 }
 

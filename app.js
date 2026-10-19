@@ -3,7 +3,7 @@
    ════════════════════════════════════════════════════════════════ */
 (function(){
 'use strict';
-const VERSION = 'note 1.6 · 2026-09-25';
+const VERSION = 'note 1.7 · 2026-10-20';
 
 /* ───────── 유틸 ───────── */
 const $ = (s, el=document) => el.querySelector(s);
@@ -73,7 +73,7 @@ const S = {
   me:null, email:'', factorId:null, enroll:null, reEnroll:null, factors:[],
   users:null, mail:null, sms:null, settings:{},
   reports:null, rid:null, rcur:null, pane:'form', saved:'',
-  meetings:null, mcur:null, photos:[], urls:{}, lb:null, sends:null, pub:null, pubToken:'',
+  meetings:null, mcur:null, photos:[], urls:{}, rurls:{}, lb:null, lbSrc:'m', sends:null, pub:null, pubToken:'',
   f:{ rMonth:'all', rStatus:'all', rAuthor:'all', mq:'', mk:'all' },
   err:'',
 };
@@ -210,7 +210,7 @@ function newReport(date){
   const u = S.me;
   return { id:null, author:u.id, author_name:u.name || '', author_dept:u.dept || '', author_title:u.title || '',
     report_date: date || TODAY(), place:'', main_task:'', attendees:'',
-    schedule: emptySched(), body:'', etc:'', status:'draft', sent_at:null };
+    schedule: emptySched(), body:'', etc:'', status:'draft', sent_at:null, photos:[] };
 }
 
 function repPayload(r){
@@ -337,7 +337,7 @@ function viewPublic(){
     <div class="pubbar">${brand('현장활동보고서')}<span class="hint">${esc(r.author_dept||'')} ${esc(r.author_name||'')} ${esc(r.author_title||'')} · ${fmtLongIso(r.report_date)}</span>
       <button class="btn sm" data-act="repPrint">${ic('print')}인쇄 · PDF</button></div>
     <div class="page" style="padding-top:14px">
-      <div class="editor" data-pane="prev"><div class="pane-prev"><div class="a4wrap">${a4HTML(r)}</div></div></div>
+      <div class="editor" data-pane="prev"><div class="pane-prev"><div class="a4pages">${a4Pages(r)}</div></div></div>
       <div class="hint" style="text-align:center">이 링크는 ${fmtDate(p.expires_at)} 까지 열립니다.</div>
     </div></div>`;
 }
@@ -345,7 +345,9 @@ async function openPublic(token){
   S.screen = 'pub'; S.pub = null; S.pubToken = token; render();
   try {
     const out = await edge('view-report', { token });
-    S.pub = { report: fixRep(out.report), expires_at: out.expires_at };
+    const rep = fixRep(out.report);
+    rep.photos = (out.photos || []).map((p, i) => ({ id:'p'+i, path:'', url:p.url || '', caption:p.caption || '' }));
+    S.pub = { report: rep, expires_at: out.expires_at };
   } catch(e){
     S.pub = { error: e.message || '링크를 열지 못했습니다', expired: /기한/.test(e.message || '') };
   }
@@ -580,6 +582,88 @@ async function signPhotos(paths){
   (data || []).forEach(d => { if (d && d.signedUrl && !d.error) S.urls[d.path] = d.signedUrl; });
 }
 
+/* ───────── 보고서 사진 (4. 주요 사진 · 2페이지 · 최대 8장) ───────── */
+const RBUCKET = 'report-photos';
+const RP_COLS = 'id,report,path,caption,bytes,sort,created_at';
+const RP_MAX = 8;
+const rpUrl = p => (p && (S.rurls[p.path] || p.url)) || '';
+async function loadRepPhotos(r){
+  if (!r || !r.id){ r.photos = r.photos || []; return; }
+  const { data, error } = await sb.from('report_photos').select(RP_COLS).eq('report', r.id).order('sort').order('created_at');
+  if (error){ r.photos = r.photos || []; if (!/does not exist|schema cache/i.test(error.message||'')) toast(dbMsg(error)); return; }
+  r.photos = data || [];
+  await signRepPhotos(r.photos.map(p => p.path));
+}
+async function signRepPhotos(paths){
+  const need = paths.filter(p => !S.rurls[p]);
+  if (!need.length) return;
+  const { data } = await sb.storage.from(RBUCKET).createSignedUrls(need, 3600);
+  (data || []).forEach(d => { if (d && d.signedUrl && !d.error) S.rurls[d.path] = d.signedUrl; });
+}
+async function addRepPhotos(files){
+  const r = S.rcur; if (!r || !repMine(r)) return;
+  const list = [...files].filter(f => /^image\//.test(f.type));
+  if (!list.length) return;
+  const room = RP_MAX - (r.photos || []).length;
+  if (room <= 0) return toast(`사진은 보고서 하나에 ${RP_MAX}장까지 넣을 수 있어요`);
+  if (list.length > room) toast(`${RP_MAX}장까지만 들어가요 — 앞의 ${room}장만 올립니다`);
+  if (!r.id){ clearTimeout(saveT); const out = await saveReport(); if (!out) return toast('먼저 일자를 정해 주세요'); }
+  let done = 0;
+  for (const f of list.slice(0, room)){
+    try {
+      markSaving(`사진 올리는 중… ${done+1}/${Math.min(list.length, room)}`);
+      const blob = await shrink(f);
+      const path = `${S.me.id}/${r.id}/${uid()}.jpg`;
+      const { error: upErr } = await sb.storage.from(RBUCKET).upload(path, blob, { contentType:'image/jpeg', upsert:false });
+      if (upErr) throw new Error(/exceeded|too large/i.test(upErr.message||'') ? '사진이 너무 큽니다' : (upErr.message || '올리지 못했습니다'));
+      const { data, error } = await sb.from('report_photos')
+        .insert({ report:r.id, author:S.me.id, path, bytes:blob.size, sort:(r.photos||[]).length + done })
+        .select(RP_COLS).maybeSingle();
+      if (error){ await sb.storage.from(RBUCKET).remove([path]).catch(() => null); throw new Error(dbMsg(error)); }
+      (r.photos = r.photos || []).push(data);
+      done++;
+    } catch(e){ toast(e.message || String(e)); break; }
+  }
+  if (done && r.status === 'sent') await markEdited(r);
+  markSaving('저장됨 ' + fmtDT(new Date().toISOString()));
+  await paintRepPhotos();
+}
+async function delRepPhoto(id){
+  const r = S.rcur; if (!r) return;
+  const p = (r.photos || []).find(x => x.id === id); if (!p) return;
+  const { data, error } = await busy(sb.from('report_photos').delete().eq('id', id).select('id'));
+  if (error || !data || !data.length) throw new Error(error ? dbMsg(error) : '지우지 못했습니다');
+  await sb.storage.from(RBUCKET).remove([p.path]).catch(() => null);
+  r.photos = r.photos.filter(x => x.id !== id);
+  delete S.rurls[p.path];
+  if (r.status === 'sent') await markEdited(r);
+  await paintRepPhotos(); toast('사진을 지웠어요');
+}
+// 보고한 뒤 사진이 바뀌면 글을 고친 것과 같이 '보고 후 수정' 상태로 바꿉니다
+async function markEdited(r){
+  const { data } = await sb.from('reports').update({ status:'edited' }).eq('id', r.id).select('status,updated_at').maybeSingle();
+  if (data){ r.status = data.status; const i = (S.reports||[]).findIndex(x => x.id === r.id); if (i >= 0) S.reports[i].status = data.status;
+    const b = $('#rbanner'); if (b) b.innerHTML = repBanner(r, true); }
+}
+function repPhotosHTML(r, mine){
+  const ph = r.photos || [];
+  if (!ph.length) return `<div class="hint" style="grid-column:1/-1;text-align:center;padding:14px 0">${mine ? '아직 사진이 없습니다 — 사진 찍기 또는 앨범에서 선택' : '사진이 없습니다'}</div>`;
+  return ph.map((p, i) => `<div class="pit">
+    <img src="${esc(rpUrl(p))}" alt="${esc(p.caption || '현장 사진')}" loading="lazy" data-act="lbOpen" data-src="r" data-id="${esc(p.id)}">
+    <span class="no">${i+1}</span>
+    ${mine ? `<button class="rm" type="button" data-act="rphoDel" data-id="${esc(p.id)}" aria-label="사진 지우기" title="사진 지우기">${ic('trash')}</button>` : ''}
+    <input class="in" value="${esc(p.caption)}" data-rpc="${esc(p.id)}" placeholder="사진 간략 내용" maxlength="120" ${mine ? '' : 'readonly'}>
+  </div>`).join('');
+}
+async function paintRepPhotos(){
+  const r = S.rcur; if (!r) return;
+  await signRepPhotos((r.photos||[]).map(p => p.path));
+  const g = $('#rpgrid'); if (g) g.innerHTML = repPhotosHTML(r, repMine(r));
+  const c = $('#rpcount'); if (c) c.textContent = `${(r.photos||[]).length}/${RP_MAX}장`;
+  const lab = $$('label[for="rcamIn"],label[for="ralbIn"]'); lab.forEach(l => l.classList.toggle('dis', (r.photos||[]).length >= RP_MAX));
+  refreshPreview();
+}
+
 /* ───────── 렌더 ───────── */
 function render(){
   const v = $('#view');
@@ -759,6 +843,27 @@ function a4HTML(r){
     </table>
   </div>`;
 }
+// 2페이지 — 4. 주요 사진 (1열 2장 · 4행 · 최대 8장, 사진 아래 간략 내용). 사진이 있을 때만 생깁니다
+const hasPhotoPage = r => !!(r && r.photos && r.photos.length);
+function a4PhotoHTML(r){
+  const ph = (r.photos || []).slice(0, RP_MAX);
+  const cells = Array.from({ length: RP_MAX }, (_, i) => {
+    const p = ph[i];
+    return `<div class="pc ${p ? '' : 'none'}">
+      <div class="pimg">${p ? `<img src="${esc(rpUrl(p))}" alt="${esc(p.caption || '사진 ' + (i+1))}">` : ''}</div>
+      <div class="pcap">${p ? `<span class="n">${i+1}</span>${esc(p.caption)}` : ''}</div>
+    </div>`;
+  }).join('');
+  return `<div class="a4 p2">
+    <div class="ttl">현장 활동 보고서</div><div class="gap"></div>
+    <div class="sh">4. 주요 사진</div>
+    <div class="pgrid8">${cells}</div>
+    <div class="pno">2 / 2</div>
+  </div>`;
+}
+function a4Pages(r){
+  return `<div class="a4wrap">${a4HTML(r)}</div>` + (hasPhotoPage(r) ? `<div class="a4wrap">${a4PhotoHTML(r)}</div>` : '');
+}
 function fitA4(){
   $$('#view .a4wrap, #ov .a4wrap').forEach(w => {
     const a = $('.a4', w); if (!a) return;
@@ -772,8 +877,9 @@ function measureA4(){
   ['body','etc'].forEach(k => { const w = $('#warn-'+k); if (w) w.hidden = !res[k]; });
 }
 function refreshPreview(){
-  const r = S.rcur, w = $('#view .a4wrap'); if (!r || !w) return;
-  w.innerHTML = a4HTML(r); fitA4(); measureA4();
+  const r = S.rcur, w = $('#view .a4pages'); if (!r || !w) return;
+  w.innerHTML = a4Pages(r); fitA4(); measureA4();
+  const c = $('#prevcap'); if (c) c.textContent = hasPhotoPage(r) ? 'A4 2장 (2쪽은 주요 사진)' : 'A4 1장';
 }
 
 /* ───────── 보고서 : PDF 만들기 (딸린 프로그램 없이 직접 그립니다) ───────── */
@@ -904,8 +1010,71 @@ function drawA4(cv, r, dpi){
   return cv;
 }
 
-// JPEG 한 장을 A4 한 쪽짜리 PDF 로 감쌉니다
-function jpegToPdf(jpeg, wPx, hPx){
+// 2페이지 : 4. 주요 사진 (화면 미리보기 a4PhotoHTML 과 같은 자리) — bmps[i] 는 사진 i 의 ImageBitmap(없으면 null)
+const P2 = { HEAD:33, GAP:13.8, SH:27.6, GX:8, GY:8, CAP:24, IMG:140 };
+function drawPhotoPage(cv, r, bmps, dpi){
+  const s = (dpi || 192) / 72;
+  cv.width = Math.round(PT.W * s); cv.height = Math.round(PT.H * s);
+  const g = cv.getContext('2d');
+  g.setTransform(s, 0, 0, s, 0, 0);
+  g.textBaseline = 'alphabetic';
+  g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, PT.W, PT.H);
+  g.fillStyle = '#111111'; g.strokeStyle = '#000000'; g.lineWidth = 0.75;
+  let y = PT.PADY;
+  g.font = `400 26pt ${A4FONT}`; g.textAlign = 'center';
+  const ty = y + P2.HEAD*0.72;
+  g.fillText('현장 활동 보고서', PT.W/2, ty);
+  const tw = g.measureText('현장 활동 보고서').width;
+  g.lineWidth = 1; g.beginPath(); g.moveTo(PT.W/2 - tw/2, ty + 6); g.lineTo(PT.W/2 + tw/2, ty + 6); g.stroke();
+  g.lineWidth = 0.75; g.textAlign = 'left';
+  y += P2.HEAD + P2.GAP;
+  g.font = `700 11pt ${A4FONT}`; g.fillText('4. 주요 사진', PT.PADX, y + P2.SH - 4); y += P2.SH;
+
+  const cw = PT.W - PT.PADX*2, colW = (cw - P2.GX) / 2;
+  const ph = (r.photos || []).slice(0, RP_MAX);
+  for (let i = 0; i < RP_MAX; i++){
+    const col = i % 2, row = Math.floor(i / 2);
+    const x1 = PT.PADX + col * (colW + P2.GX), y1 = y + row * (P2.IMG + P2.CAP + P2.GY);
+    const p = ph[i];
+    if (!p){ g.strokeStyle = '#D9D9D9'; g.strokeRect(x1, y1, colW, P2.IMG + P2.CAP); g.strokeStyle = '#000000'; continue; }
+    g.fillStyle = '#FAFAFA'; g.fillRect(x1, y1, colW, P2.IMG); g.fillStyle = '#111111';
+    const b = bmps[i];
+    if (b){
+      const k = Math.min((colW - 2) / b.width, (P2.IMG - 2) / b.height);
+      const w = b.width * k, h = b.height * k;
+      g.drawImage(b, x1 + (colW - w)/2, y1 + (P2.IMG - h)/2, w, h);
+    } else { g.font = `400 9pt ${A4FONT}`; g.fillStyle = '#888'; g.textAlign = 'center'; g.fillText('(사진을 불러오지 못했습니다)', x1 + colW/2, y1 + P2.IMG/2); g.textAlign = 'left'; g.fillStyle = '#111111'; }
+    g.strokeRect(x1, y1, colW, P2.IMG);
+    g.strokeRect(x1, y1 + P2.IMG, colW, P2.CAP);
+    // 번호 + 간략 내용 (한 줄, 넘치면 …)
+    g.font = `700 9pt ${A4FONT}`;
+    const no = String(i + 1), noW = g.measureText(no).width + 6;
+    g.fillStyle = '#F2F2F2'; g.fillRect(x1 + 0.4, y1 + P2.IMG + 0.4, noW + 8, P2.CAP - 0.8); g.fillStyle = '#111111';
+    g.fillText(no, x1 + 7, y1 + P2.IMG + P2.CAP/2 + 9*0.36);
+    g.font = `400 9.5pt ${A4FONT}`;
+    let t = String(p.caption || ''), w = colW - noW - 8 - 12;
+    if (g.measureText(t).width > w){ while (t && g.measureText(t + '…').width > w) t = t.slice(0, -1); t += '…'; }
+    g.fillText(t, x1 + noW + 8 + 6, y1 + P2.IMG + P2.CAP/2 + 9.5*0.36);
+  }
+  g.font = `400 8.5pt ${A4FONT}`; g.fillStyle = '#666'; g.textAlign = 'center';
+  g.fillText('2 / 2', PT.W/2, PT.H - PT.PADY + 14); g.textAlign = 'left'; g.fillStyle = '#111111';
+  return cv;
+}
+// 서명 주소의 사진을 받아 ImageBitmap 으로 (fetch 로 받으므로 캔버스가 오염되지 않음)
+async function loadPhotoBitmaps(r){
+  const ph = (r.photos || []).slice(0, RP_MAX);
+  await signRepPhotos(ph.map(p => p.path).filter(Boolean));
+  return Promise.all(ph.map(async p => {
+    try {
+      const res = await fetch(rpUrl(p), { cache:'no-store' }); if (!res.ok) return null;
+      const blob = await res.blob();
+      return await createImageBitmap(blob);
+    } catch(e){ return null; }
+  }));
+}
+
+// JPEG 여러 장을 A4 여러 쪽짜리 PDF 로 감쌉니다  pages = [{jpeg, w, h}, …]
+function jpegsToPdf(pages){
   const enc = new TextEncoder(), parts = []; let len = 0;
   const put = u8 => { parts.push(u8); len += u8.length; };
   const str = s => put(enc.encode(s));
@@ -916,32 +1085,48 @@ function jpegToPdf(jpeg, wPx, hPx){
     if (stream){ str('stream\n'); put(stream); str('\nendstream\n'); }
     str('endobj\n');
   };
+  const N = pages.length, pageIds = pages.map((_, i) => 3 + i*3);
   str('%PDF-1.4\n'); put(new Uint8Array([0x25,0xE2,0xE3,0xCF,0xD3,0x0A]));
   obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
-  obj(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
-  obj(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PT.W.toFixed(2)} ${PT.H.toFixed(2)}] `
-       + `/Resources << /XObject << /I0 4 0 R >> >> /Contents 5 0 R >>`);
-  obj(4, `<< /Type /XObject /Subtype /Image /Width ${wPx} /Height ${hPx} /ColorSpace /DeviceRGB `
-       + `/BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>`, jpeg);
-  const content = enc.encode(`q ${PT.W.toFixed(2)} 0 0 ${PT.H.toFixed(2)} 0 0 cm /I0 Do Q`);
-  obj(5, `<< /Length ${content.length} >>`, content);
-  const xref = len;
-  let x = 'xref\n0 6\n0000000000 65535 f \n';
-  for (let i = 1; i <= 5; i++) x += String(off[i]).padStart(10,'0') + ' 00000 n \n';
+  obj(2, `<< /Type /Pages /Kids [${pageIds.map(n => n + ' 0 R').join(' ')}] /Count ${N} >>`);
+  pages.forEach((pg, i) => {
+    const pn = pageIds[i], im = pn + 1, ct = pn + 2;
+    obj(pn, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PT.W.toFixed(2)} ${PT.H.toFixed(2)}] `
+          + `/Resources << /XObject << /I0 ${im} 0 R >> >> /Contents ${ct} 0 R >>`);
+    obj(im, `<< /Type /XObject /Subtype /Image /Width ${pg.w} /Height ${pg.h} /ColorSpace /DeviceRGB `
+          + `/BitsPerComponent 8 /Filter /DCTDecode /Length ${pg.jpeg.length} >>`, pg.jpeg);
+    const content = enc.encode(`q ${PT.W.toFixed(2)} 0 0 ${PT.H.toFixed(2)} 0 0 cm /I0 Do Q`);
+    obj(ct, `<< /Length ${content.length} >>`, content);
+  });
+  const last = 2 + N*3, xref = len;
+  let x = `xref\n0 ${last + 1}\n0000000000 65535 f \n`;
+  for (let i = 1; i <= last; i++) x += String(off[i]).padStart(10,'0') + ' 00000 n \n';
   str(x);
-  str(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  str(`trailer\n<< /Size ${last + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
   const out = new Uint8Array(len); let p = 0;
   for (const u of parts){ out.set(u, p); p += u.length; }
   return out;
 }
+const jpegToPdf = (jpeg, w, h) => jpegsToPdf([{ jpeg, w, h }]);
 
+async function canvasJpeg(cv, q){
+  const blob = await new Promise(res => cv.toBlob(res, 'image/jpeg', q));
+  if (!blob) throw new Error('PDF 를 만들지 못했습니다');
+  return { jpeg: new Uint8Array(await blob.arrayBuffer()), w: cv.width, h: cv.height };
+}
 async function makeReportPdf(r){
+  const pages = [];
   const cv = document.createElement('canvas');
   drawA4(cv, r, 192);
-  const blob = await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.92));
-  if (!blob) throw new Error('PDF 를 만들지 못했습니다');
-  const jpeg = new Uint8Array(await blob.arrayBuffer());
-  const bytes = jpegToPdf(jpeg, cv.width, cv.height);
+  pages.push(await canvasJpeg(cv, 0.92));
+  if (hasPhotoPage(r)){
+    const bmps = await loadPhotoBitmaps(r);
+    const cv2 = document.createElement('canvas');
+    drawPhotoPage(cv2, r, bmps, 192);
+    pages.push(await canvasJpeg(cv2, 0.88));
+    bmps.forEach(b => { if (b && b.close) b.close(); });
+  }
+  const bytes = jpegsToPdf(pages);
   const name = `현장활동보고서_${String(r.report_date).replace(/-/g,'')}_${(r.author_name||'').replace(/[\\/:*?"<>|]/g,'')}.pdf`;
   return { bytes, name };
 }
@@ -987,13 +1172,19 @@ function viewReportEdit(){
           <div class="field"><label for="r-etc">기타 (특이사항 및 공유 사항)</label><textarea class="in" id="r-etc" rows="3" data-rf="etc" maxlength="2000" ${dis}>${esc(r.etc)}</textarea>
             <div class="warn" id="warn-etc" hidden>${ic('alert')}<span>기타 칸을 넘었어요. 넘친 부분은 PDF 에서 잘립니다.</span></div></div>
         </section>
+        <section class="sec"><div class="sec-h"><h3>4. 주요 사진</h3><span class="hint" id="rpcount">${(r.photos||[]).length}/${RP_MAX}장</span></div>
+          ${mine ? `<div class="padd"><label class="btn ${(r.photos||[]).length >= RP_MAX ? 'dis' : ''}" for="rcamIn">${ic('camera')}사진 찍기</label><label class="btn ${(r.photos||[]).length >= RP_MAX ? 'dis' : ''}" for="ralbIn">${ic('image')}앨범에서 선택</label>
+            <input type="file" id="rcamIn" class="sr" accept="image/*" capture="environment"><input type="file" id="ralbIn" class="sr" accept="image/*" multiple></div>` : ''}
+          <div class="pgrid" id="rpgrid">${repPhotosHTML(r, mine)}</div>
+          <div class="hint">사진이 있으면 A4 2쪽(1열 2장 · 4행, 최대 ${RP_MAX}장)으로 붙습니다. 사진 아래 칸에 간략 내용을 적으세요. 올리기 전에 긴 쪽 1600px 로 줄이고 위치정보(GPS)를 지웁니다.</div>
+        </section>
         ${(S.sends && S.sends.length) ? `<section class="panel sends"><div class="panel-h"><h2>보고 내역</h2><span class="hint">${S.sends.length}건</span></div>
           ${S.sends.map(x => `<div class="it"><span class="mono">${fmtDT(x.sent_at)}</span>${ic(x.channel==='mail'?'mail':'sms')}<span><b>${esc(x.to_name)}</b> <span class="ad">${esc(x.to_addr)}</span>${x.ok?'':`<br><span class="ad">${esc(x.error)}</span>`}</span><span class="pill ${x.ok?'sent':'none'}">${x.ok?'성공':'실패'}</span></div>`).join('')}</section>` : ''}
         <div class="sticky-act"><button class="btn" data-act="pane" data-v="prev">${ic('eye')}미리보기</button>${mine ? sendBtn : `<button class="btn" data-act="repPrint">${ic('print')}인쇄</button>`}</div>
       </div>
       <div class="pane-prev">
-        <div class="cap"><span>메일에 첨부되는 PDF 와 같은 모양 · A4 1장</span><span class="mono">현장활동보고서_${esc(r.report_date.replace(/-/g,''))}_${esc(r.author_name||'')}.pdf</span></div>
-        <div class="a4wrap">${a4HTML(r)}</div>
+        <div class="cap"><span>메일에 첨부되는 PDF 와 같은 모양 · <span id="prevcap">${hasPhotoPage(r) ? 'A4 2장 (2쪽은 주요 사진)' : 'A4 1장'}</span></span><span class="mono">현장활동보고서_${esc(r.report_date.replace(/-/g,''))}_${esc(r.author_name||'')}.pdf</span></div>
+        <div class="a4pages">${a4Pages(r)}</div>
         <div class="sticky-act"><button class="btn" data-act="pane" data-v="form">${ic('doc')}작성으로</button><button class="btn" data-act="repPrint">${ic('print')}인쇄 · PDF</button></div>
       </div>
     </div>
@@ -1147,15 +1338,15 @@ function paintPhotos(){
     const c = $('#pcount'); if (c) c.textContent = `${(m.photos||[]).length}장`;
   });
 }
+const lbList = () => S.lbSrc === 'r' ? ((S.rcur || (S.pub && S.pub.report) || {}).photos || []) : ((S.mcur || {}).photos || []);
 function viewLightbox(){
   if (!S.lb) return '';
-  const m = S.mcur; if (!m) return '';
-  const ph = m.photos || [], i = ph.findIndex(p => p.id === S.lb);
+  const ph = lbList(), i = ph.findIndex(p => p.id === S.lb);
   if (i < 0) return '';
   const p = ph[i];
   return `<div class="lb" data-act="lbBg">
     <button class="iconbtn x" data-act="lbClose" aria-label="닫기">${ic('x')}</button>
-    <img src="${esc(S.urls[p.path] || '')}" alt="${esc(p.caption || '현장 사진')}">
+    <img src="${esc(S.lbSrc === 'r' ? rpUrl(p) : (S.urls[p.path] || ''))}" alt="${esc(p.caption || '현장 사진')}">
     <div class="bar"><button data-act="lbPrev" aria-label="이전" ${i===0?'disabled':''}>${ic('chevl')}</button>
       <span>${i+1} / ${ph.length}</span>
       <button data-act="lbNext" aria-label="다음" ${i===ph.length-1?'disabled':''}>${ic('chevr')}</button></div>
@@ -1474,6 +1665,8 @@ document.addEventListener('click', async e => {
           const { data, error } = await busy(sb.from('reports').delete().eq('id', r.id).select('id'));
           if (error || !data || !data.length) throw new Error(error ? dbMsg(error) : '삭제하지 못했습니다');
           S.reports = (S.reports || []).filter(x => x.id !== r.id);
+          const paths = (r.photos || []).map(p => p.path).filter(Boolean);
+          if (paths.length) await sb.storage.from(RBUCKET).remove(paths).catch(() => null);
         }
         S.rcur = null; S.rid = null; S.route = 'reports'; render(); toast('보고서를 삭제했어요'); break; }
       case 'pane': {
@@ -1535,11 +1728,12 @@ document.addEventListener('click', async e => {
         const all = $$('#todos .tx'); if (all.length) all[all.length-1].focus(); queueMemoSave(); break; }
       case 'todoDel': { const m = S.mcur; m.todos.splice(+t.dataset.i, 1); $('#todos').innerHTML = todosHTML(m); queueMemoSave(); break; }
       case 'phoDel': if (armed(t, '정말 삭제')) await delPhoto(t.dataset.id); break;
-      case 'lbOpen': S.lb = t.dataset.id; $('#ov').innerHTML = viewLightbox(); break;
+      case 'lbOpen': S.lb = t.dataset.id; S.lbSrc = t.dataset.src === 'r' ? 'r' : 'm'; $('#ov').innerHTML = viewLightbox(); break;
+      case 'rphoDel': if (armed(t, '정말 삭제')) await delRepPhoto(t.dataset.id); break;
       case 'lbClose': S.lb = null; closeOv(); break;
       case 'lbBg': if (e.target === t){ S.lb = null; closeOv(); } break;
       case 'lbPrev': case 'lbNext': {
-        const ph = S.mcur.photos || [], i = ph.findIndex(p => p.id === S.lb);
+        const ph = lbList(), i = ph.findIndex(p => p.id === S.lb);
         const n = a === 'lbPrev' ? i-1 : i+1;
         if (ph[n]){ S.lb = ph[n].id; $('#ov').innerHTML = viewLightbox(); }
         break; }
@@ -1597,7 +1791,8 @@ async function openReport(id){
   const r = repById(id);
   if (!r){ toast('보고서를 찾을 수 없습니다'); S.route = 'reports'; render(); return; }
   S.rcur = fixRep(r); S.rid = id; S.route = 'report'; S.pane = 'form'; S.saved = repMine(r) ? '자동 저장됩니다' : '';
-  S.sends = null; render(); afterRepRender();
+  S.sends = null; S.rcur.photos = []; render(); afterRepRender();
+  loadRepPhotos(S.rcur).then(() => { if (S.rid === id && S.route === 'report') paintRepPhotos(); });
   if (r.status !== 'draft' || repMine(r)){ S.sends = await loadSends(id); if (S.rid === id && S.route === 'report') { render(); afterRepRender(); } }
   const m = $('#main'); if (m) m.scrollTop = 0;
 }
@@ -1782,9 +1977,13 @@ document.addEventListener('change', async e => {
     const files = [...t.files]; t.value = '';
     await addPhotos(files);
   }
+  if ((t.id === 'rcamIn' || t.id === 'ralbIn') && t.files && t.files.length){
+    const files = [...t.files]; t.value = '';
+    try { await addRepPhotos(files); } catch(err){ toast(err.message || String(err)); }
+  }
 });
 
-let prevT = null, capT = null;
+let prevT = null, capT = null, rcapT = null;
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.dataset && t.dataset.rf && S.rcur && repMine(S.rcur)){
@@ -1816,6 +2015,15 @@ document.addEventListener('input', e => {
     if (p){ p.caption = t.value; clearTimeout(capT); capT = setTimeout(() => {
       sb.from('meeting_photos').update({ caption:p.caption.slice(0,200) }).eq('id', p.id).then(({error}) => { if (error) toast(dbMsg(error)); });
     }, 900); }
+    return;
+  }
+  if (t.dataset && t.dataset.rpc && S.rcur && repMine(S.rcur)){
+    const p = (S.rcur.photos || []).find(x => x.id === t.dataset.rpc);
+    if (p){ p.caption = t.value.slice(0,120); clearTimeout(rcapT); rcapT = setTimeout(() => {
+      sb.from('report_photos').update({ caption:p.caption }).eq('id', p.id).then(({error}) => { if (error) toast(dbMsg(error)); });
+    }, 900);
+      const cap = $$('#view .a4.p2 .pcap')[(S.rcur.photos||[]).indexOf(p)];
+      if (cap) cap.innerHTML = `<span class="n">${(S.rcur.photos||[]).indexOf(p)+1}</span>${esc(p.caption)}`; }
     return;
   }
   if (t.dataset && t.dataset.filter === 'mq'){ S.f.mq = t.value;

@@ -3,7 +3,7 @@
    ════════════════════════════════════════════════════════════════ */
 (function(){
 'use strict';
-const VERSION = 'note 1.7 · 2026-10-20';
+const VERSION = 'note 1.8 · 2026-10-20';
 
 /* ───────── 유틸 ───────── */
 const $ = (s, el=document) => el.querySelector(s);
@@ -64,6 +64,7 @@ const ICON = {
   import:'<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 20h14"/>',
   chevl:'<path d="M14.5 5.5 8 12l6.5 6.5"/>',
   chevr:'<path d="M9.5 5.5 16 12l-6.5 6.5"/>',
+  sort:'<path d="M8 4v16M4.5 7.5 8 4l3.5 3.5M16 20V4M12.5 16.5 16 20l3.5-3.5"/>',
 };
 const ic = (n, cls='') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]||''}</svg>`;
 
@@ -73,7 +74,7 @@ const S = {
   me:null, email:'', factorId:null, enroll:null, reEnroll:null, factors:[],
   users:null, mail:null, sms:null, settings:{},
   reports:null, rid:null, rcur:null, pane:'form', saved:'',
-  meetings:null, mcur:null, photos:[], urls:{}, rurls:{}, lb:null, lbSrc:'m', sends:null, pub:null, pubToken:'',
+  meetings:null, mcur:null, photos:[], urls:{}, rurls:{}, lb:null, lbSrc:'m', rpPick:null, rpDrag:null, sends:null, pub:null, pubToken:'',
   f:{ rMonth:'all', rStatus:'all', rAuthor:'all', mq:'', mk:'all' },
   err:'',
 };
@@ -648,9 +649,10 @@ async function markEdited(r){
 function repPhotosHTML(r, mine){
   const ph = r.photos || [];
   if (!ph.length) return `<div class="hint" style="grid-column:1/-1;text-align:center;padding:14px 0">${mine ? '아직 사진이 없습니다 — 사진 찍기 또는 앨범에서 선택' : '사진이 없습니다'}</div>`;
-  return ph.map((p, i) => `<div class="pit">
-    <img src="${esc(rpUrl(p))}" alt="${esc(p.caption || '현장 사진')}" loading="lazy" data-act="lbOpen" data-src="r" data-id="${esc(p.id)}">
-    <span class="no">${i+1}</span>
+  const pick = mine ? S.rpPick : null;
+  return ph.map((p, i) => `<div class="pit ${mine ? 'sortable' : ''} ${pick === p.id ? 'picked' : ''}" data-rpid="${esc(p.id)}">
+    <img src="${esc(rpUrl(p))}" alt="${esc(p.caption || '현장 사진')}" loading="lazy" data-act="lbOpen" data-src="r" data-id="${esc(p.id)}" ${mine ? 'draggable="true"' : ''}>
+    ${mine ? `<button class="no ord" type="button" data-act="rpPick" data-id="${esc(p.id)}" title="${pick === p.id ? '순서 바꾸기 취소' : '순서 바꾸기 — 누른 뒤 옮길 자리의 사진을 누르세요'}" aria-label="${i+1}번 사진 순서 바꾸기" aria-pressed="${pick === p.id}">${i+1}${ic('sort')}</button>` : `<span class="no">${i+1}</span>`}
     ${mine ? `<button class="rm" type="button" data-act="rphoDel" data-id="${esc(p.id)}" aria-label="사진 지우기" title="사진 지우기">${ic('trash')}</button>` : ''}
     <input class="in" value="${esc(p.caption)}" data-rpc="${esc(p.id)}" placeholder="사진 간략 내용" maxlength="120" ${mine ? '' : 'readonly'}>
   </div>`).join('');
@@ -658,10 +660,36 @@ function repPhotosHTML(r, mine){
 async function paintRepPhotos(){
   const r = S.rcur; if (!r) return;
   await signRepPhotos((r.photos||[]).map(p => p.path));
-  const g = $('#rpgrid'); if (g) g.innerHTML = repPhotosHTML(r, repMine(r));
+  const g = $('#rpgrid'); if (g){ g.innerHTML = repPhotosHTML(r, repMine(r)); g.classList.toggle('picking', !!S.rpPick); }
   const c = $('#rpcount'); if (c) c.textContent = `${(r.photos||[]).length}/${RP_MAX}장`;
+  const h = $('#rphint'); if (h) h.textContent = S.rpPick ? '옮길 자리의 사진을 누르세요 — 번호를 다시 누르면 취소' : '번호를 누른 뒤 옮길 자리의 사진을 누르거나, 사진을 끌어다 놓으면 순서가 바뀝니다.';
   const lab = $$('label[for="rcamIn"],label[for="ralbIn"]'); lab.forEach(l => l.classList.toggle('dis', (r.photos||[]).length >= RP_MAX));
   refreshPreview();
+}
+// 사진 순서 바꾸기 (v13) — 번호 단추를 누른 뒤 옮길 자리의 사진을 누르거나, 끌어다 놓습니다
+function rpPickToggle(id){
+  const r = S.rcur; if (!r || !repMine(r)) return;
+  if (S.rpPick && S.rpPick !== id) return rpMove(S.rpPick, id);
+  S.rpPick = S.rpPick === id ? null : id;
+  return paintRepPhotos();
+}
+async function rpMove(fromId, toId){
+  const r = S.rcur; if (!r || !repMine(r)) return;
+  const ph = r.photos || [];
+  const a = ph.findIndex(p => p.id === fromId), b = ph.findIndex(p => p.id === toId);
+  S.rpPick = null; S.rpDrag = null;
+  if (a < 0 || b < 0 || a === b) return paintRepPhotos();
+  const [mv] = ph.splice(a, 1); ph.splice(b, 0, mv);
+  const changed = ph.map((p, i) => ({ p, i })).filter(x => x.p.sort !== x.i);
+  changed.forEach(x => { x.p.sort = x.i; });
+  await paintRepPhotos();
+  markSaving('순서 저장 중…');
+  const res = await Promise.all(changed.map(x => sb.from('report_photos').update({ sort:x.i }).eq('id', x.p.id).select('id')));
+  const bad = res.find(x => x.error || !x.data || !x.data.length);
+  if (bad){ toast(bad.error ? dbMsg(bad.error) : '순서를 저장하지 못했습니다'); await loadRepPhotos(r); return paintRepPhotos(); }
+  if (r.status === 'sent') await markEdited(r);
+  markSaving('저장됨 ' + fmtDT(new Date().toISOString()));
+  toast(`${b+1}번으로 옮겼어요`);
 }
 
 /* ───────── 렌더 ───────── */
@@ -1176,6 +1204,7 @@ function viewReportEdit(){
           ${mine ? `<div class="padd"><label class="btn ${(r.photos||[]).length >= RP_MAX ? 'dis' : ''}" for="rcamIn">${ic('camera')}사진 찍기</label><label class="btn ${(r.photos||[]).length >= RP_MAX ? 'dis' : ''}" for="ralbIn">${ic('image')}앨범에서 선택</label>
             <input type="file" id="rcamIn" class="sr" accept="image/*" capture="environment"><input type="file" id="ralbIn" class="sr" accept="image/*" multiple></div>` : ''}
           <div class="pgrid" id="rpgrid">${repPhotosHTML(r, mine)}</div>
+          ${mine ? `<div class="hint" id="rphint">번호를 누른 뒤 옮길 자리의 사진을 누르거나, 사진을 끌어다 놓으면 순서가 바뀝니다.</div>` : ''}
           <div class="hint">사진이 있으면 A4 2쪽(1열 2장 · 4행, 최대 ${RP_MAX}장)으로 붙습니다. 사진 아래 칸에 간략 내용을 적으세요. 올리기 전에 긴 쪽 1600px 로 줄이고 위치정보(GPS)를 지웁니다.</div>
         </section>
         ${(S.sends && S.sends.length) ? `<section class="panel sends"><div class="panel-h"><h2>보고 내역</h2><span class="hint">${S.sends.length}건</span></div>
@@ -1635,7 +1664,7 @@ document.addEventListener('click', async e => {
       case 'go': {
         await flushSave();
         S.route = t.dataset.to; closeOv();
-        if (S.route !== 'report'){ S.rcur = null; S.rid = null; }
+        if (S.route !== 'report'){ S.rcur = null; S.rid = null; S.rpPick = null; }
         if (S.route !== 'memo'){ S.mcur = null; S.lb = null; }
         if (S.route !== 'report' && S.route !== 'memo') S.saved = '';
         if (S.route === 'settings') await openSettingsTab(t.dataset.tab || S.stab);
@@ -1728,7 +1757,10 @@ document.addEventListener('click', async e => {
         const all = $$('#todos .tx'); if (all.length) all[all.length-1].focus(); queueMemoSave(); break; }
       case 'todoDel': { const m = S.mcur; m.todos.splice(+t.dataset.i, 1); $('#todos').innerHTML = todosHTML(m); queueMemoSave(); break; }
       case 'phoDel': if (armed(t, '정말 삭제')) await delPhoto(t.dataset.id); break;
-      case 'lbOpen': S.lb = t.dataset.id; S.lbSrc = t.dataset.src === 'r' ? 'r' : 'm'; $('#ov').innerHTML = viewLightbox(); break;
+      case 'lbOpen':
+        if (t.dataset.src === 'r' && S.rpPick){ await rpMove(S.rpPick, t.dataset.id); break; }
+        S.lb = t.dataset.id; S.lbSrc = t.dataset.src === 'r' ? 'r' : 'm'; $('#ov').innerHTML = viewLightbox(); break;
+      case 'rpPick': await rpPickToggle(t.dataset.id); break;
       case 'rphoDel': if (armed(t, '정말 삭제')) await delRepPhoto(t.dataset.id); break;
       case 'lbClose': S.lb = null; closeOv(); break;
       case 'lbBg': if (e.target === t){ S.lb = null; closeOv(); } break;
@@ -1791,7 +1823,7 @@ async function openReport(id){
   const r = repById(id);
   if (!r){ toast('보고서를 찾을 수 없습니다'); S.route = 'reports'; render(); return; }
   S.rcur = fixRep(r); S.rid = id; S.route = 'report'; S.pane = 'form'; S.saved = repMine(r) ? '자동 저장됩니다' : '';
-  S.sends = null; S.rcur.photos = []; render(); afterRepRender();
+  S.sends = null; S.rcur.photos = []; S.rpPick = null; render(); afterRepRender();
   loadRepPhotos(S.rcur).then(() => { if (S.rid === id && S.route === 'report') paintRepPhotos(); });
   if (r.status !== 'draft' || repMine(r)){ S.sends = await loadSends(id); if (S.rid === id && S.route === 'report') { render(); afterRepRender(); } }
   const m = $('#main'); if (m) m.scrollTop = 0;
@@ -2071,7 +2103,33 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (e.key === 'Escape' && $('#ov').innerHTML){ S.lb = null; closeOv(); }
+  else if (e.key === 'Escape' && S.rpPick){ S.rpPick = null; paintRepPhotos(); }
 });
+// 보고서 사진 끌어다 놓기 (마우스) — 사진(img)만 끌 수 있고, 다른 사진 칸 위에 놓으면 그 자리로 갑니다
+const rpTile = el => el && el.closest ? el.closest('#rpgrid .pit.sortable') : null;
+document.addEventListener('dragstart', e => {
+  const tile = rpTile(e.target);
+  if (!tile || !e.target.matches('img[draggable="true"]')){ return; }
+  S.rpDrag = tile.dataset.rpid; S.rpPick = null;
+  tile.classList.add('drag');
+  try { e.dataTransfer.setData('text/plain', S.rpDrag); e.dataTransfer.effectAllowed = 'move'; } catch(err){}
+});
+document.addEventListener('dragover', e => {
+  if (!S.rpDrag) return;
+  const tile = rpTile(e.target); if (!tile) return;
+  e.preventDefault(); try { e.dataTransfer.dropEffect = 'move'; } catch(err){}
+  $$('#rpgrid .pit.over').forEach(x => { if (x !== tile) x.classList.remove('over'); });
+  if (tile.dataset.rpid !== S.rpDrag) tile.classList.add('over');
+});
+document.addEventListener('dragleave', e => { const tile = rpTile(e.target); if (tile && !tile.contains(e.relatedTarget)) tile.classList.remove('over'); });
+document.addEventListener('drop', e => {
+  if (!S.rpDrag) return;
+  const tile = rpTile(e.target); if (!tile) return;
+  e.preventDefault();
+  const from = S.rpDrag, to = tile.dataset.rpid;
+  rpMove(from, to).catch(err => toast(err.message || String(err)));
+});
+document.addEventListener('dragend', () => { S.rpDrag = null; $$('#rpgrid .pit.over, #rpgrid .pit.drag').forEach(x => x.classList.remove('over','drag')); });
 document.addEventListener('focusout', e => {
   if (e.target.id !== 'chipIn') return;
   const v = e.target.value.trim(); if (!v) return;
@@ -2087,7 +2145,7 @@ document.addEventListener('paste', e => {
 });
 
 // 점검용 손잡이 (브라우저 안에서만 도는 코드라 보안과는 무관합니다)
-window.__note = { makeReportPdf, drawA4, jpegToPdf, wrapLines, S };
+window.__note = { makeReportPdf, drawA4, jpegToPdf, wrapLines, S, rpMove, rpPickToggle, paintRepPhotos };
 
 try { new ResizeObserver(() => fitA4()).observe($('#app')); } catch(e){}
 addEventListener('beforeunload', e => {

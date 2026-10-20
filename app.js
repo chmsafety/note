@@ -3,7 +3,7 @@
    ════════════════════════════════════════════════════════════════ */
 (function(){
 'use strict';
-const VERSION = 'note 1.8 · 2026-10-20';
+const VERSION = 'note 1.9 · 2026-10-20';
 
 /* ───────── 유틸 ───────── */
 const $ = (s, el=document) => el.querySelector(s);
@@ -962,7 +962,7 @@ function drawA4(cv, r, dpi){
   };
   const one = (txt, x1, y1, x2, y2, o) => {          // 한 줄 (넘치면 …)
     const pad = (o && o.pad) || 5, align = (o && o.align) || 'center';
-    g.font = `${(o && o.weight) || 400} ${(o && o.size) || 10.5}pt ${A4FONT}`;
+    g.font = `${(o && o.weight) || 400} ${(o && o.size) || 10.5}px ${A4FONT}`;
     let t = String(txt || ''), w = x2 - x1 - pad*2;
     if (g.measureText(t).width > w){ while (t && g.measureText(t + '…').width > w) t = t.slice(0, -1); t += '…'; }
     const cy = (y1 + y2) / 2 + ((o && o.size) || 10.5) * 0.36;
@@ -972,7 +972,7 @@ function drawA4(cv, r, dpi){
   };
   const mid = (txt, x1, y1, x2, y2, o) => {           // 칸 너비에 맞춰 줄바꿈 + 위아래 가운데
     const size = (o && o.size) || 10, pad = (o && o.pad) || 4;
-    g.font = `${(o && o.weight) || 400} ${size}pt ${A4FONT}`;
+    g.font = `${(o && o.weight) || 400} ${size}px ${A4FONT}`;
     const lh = size * 1.35;
     const lines = wrapLines(g, txt, x2 - x1 - pad*2, 3);
     const top = (y1 + y2) / 2 - (lines.length * lh) / 2;
@@ -982,7 +982,7 @@ function drawA4(cv, r, dpi){
   };
   const many = (txt, x1, y1, x2, y2, size) => {      // 여러 줄 (칸을 넘치면 잘림)
     const padX = 7, padY = 6, lh = size * 1.55;
-    g.font = `400 ${size}pt ${A4FONT}`;
+    g.font = `400 ${size}px ${A4FONT}`;
     const maxLines = Math.max(0, Math.floor((y2 - y1 - padY*2) / lh));
     const lines = wrapLines(g, txt, x2 - x1 - padX*2, maxLines);
     lines.forEach((ln, i) => g.fillText(ln, x1 + padX, y1 + padY + lh*(i+1) - lh*0.28));
@@ -990,7 +990,7 @@ function drawA4(cv, r, dpi){
 
   let y = PT.PADY;
   // 제목
-  g.font = `400 26pt ${A4FONT}`; g.textAlign = 'center';
+  g.font = `400 26px ${A4FONT}`; g.textAlign = 'center';
   const ty = y + 33*0.72;
   g.fillText('현장 활동 보고서', PT.W/2, ty);
   const tw = g.measureText('현장 활동 보고서').width;
@@ -998,7 +998,7 @@ function drawA4(cv, r, dpi){
   g.lineWidth = 0.75; g.textAlign = 'left';
   y += 33 + 13.8;
 
-  const head = (t, h) => { g.font = `700 11pt ${A4FONT}`; g.fillText(t, PT.PADX, y + h - 4); y += h; };
+  const head = (t, h) => { g.font = `700 11px ${A4FONT}`; g.fillText(t, PT.PADX, y + h - 4); y += h; };
   const who = `${r.author_name || ''} ${r.author_title || ''}`.trim();
 
   // 1. 개요
@@ -1009,11 +1009,25 @@ function drawA4(cv, r, dpi){
     [['참석자', X[0], X[2]], [r.attendees, X[2], X[10], 'left']],
   ];
   for (const row of rows1){
-    const y2 = y + 22.2;
+    // 참석자는 화면 미리보기처럼 칸 안에서 줄바꿈 (최대 2줄, 칸 높이가 늘어남)
+    let att = null, y2 = y + 22.2;
+    if (row.length === 2){
+      g.font = `400 10.5px ${A4FONT}`;
+      const w = row[1][2] - row[1][1] - 10, all = wrapLines(g, row[1][0], w, 99);
+      if (all.length > 1){
+        att = all.slice(0, 2);
+        if (all.length > 2){ let t = att[1]; while (t && g.measureText(t + '…').width > w) t = t.slice(0, -1); att[1] = t + '…'; }
+        y2 = y + Math.max(22.2, att.length * 10.5 * 1.35 + 8);
+      }
+    }
     row.forEach((c, i) => {
       const isTh = i % 2 === 0;
       box(c[1], y, c[2], y2, isTh);
-      one(c[0], c[1], y, c[2], y2, { size: isTh ? 10 : 10.5, align: isTh ? 'center' : (c[3] || 'center') });
+      if (!isTh && att){
+        g.font = `400 10.5px ${A4FONT}`;
+        const lh = 10.5 * 1.35, top = (y + y2) / 2 - (att.length * lh) / 2;
+        att.forEach((ln, k) => g.fillText(ln, c[1] + 5, top + lh*(k+1) - lh*0.28));
+      } else one(c[0], c[1], y, c[2], y2, { size: isTh ? 10 : 10.5, align: isTh ? 'center' : (c[3] || 'center') });
     });
     y = y2;
   }
@@ -1049,14 +1063,14 @@ function drawPhotoPage(cv, r, bmps, dpi){
   g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, PT.W, PT.H);
   g.fillStyle = '#111111'; g.strokeStyle = '#000000'; g.lineWidth = 0.75;
   let y = PT.PADY;
-  g.font = `400 26pt ${A4FONT}`; g.textAlign = 'center';
+  g.font = `400 26px ${A4FONT}`; g.textAlign = 'center';
   const ty = y + P2.HEAD*0.72;
   g.fillText('현장 활동 보고서', PT.W/2, ty);
   const tw = g.measureText('현장 활동 보고서').width;
   g.lineWidth = 1; g.beginPath(); g.moveTo(PT.W/2 - tw/2, ty + 6); g.lineTo(PT.W/2 + tw/2, ty + 6); g.stroke();
   g.lineWidth = 0.75; g.textAlign = 'left';
   y += P2.HEAD + P2.GAP;
-  g.font = `700 11pt ${A4FONT}`; g.fillText('4. 주요 사진', PT.PADX, y + P2.SH - 4); y += P2.SH;
+  g.font = `700 11px ${A4FONT}`; g.fillText('4. 주요 사진', PT.PADX, y + P2.SH - 4); y += P2.SH;
 
   const cw = PT.W - PT.PADX*2, colW = (cw - P2.GX) / 2;
   const ph = (r.photos || []).slice(0, RP_MAX);
@@ -1071,20 +1085,20 @@ function drawPhotoPage(cv, r, bmps, dpi){
       const k = Math.min((colW - 2) / b.width, (P2.IMG - 2) / b.height);
       const w = b.width * k, h = b.height * k;
       g.drawImage(b, x1 + (colW - w)/2, y1 + (P2.IMG - h)/2, w, h);
-    } else { g.font = `400 9pt ${A4FONT}`; g.fillStyle = '#888'; g.textAlign = 'center'; g.fillText('(사진을 불러오지 못했습니다)', x1 + colW/2, y1 + P2.IMG/2); g.textAlign = 'left'; g.fillStyle = '#111111'; }
+    } else { g.font = `400 9px ${A4FONT}`; g.fillStyle = '#888'; g.textAlign = 'center'; g.fillText('(사진을 불러오지 못했습니다)', x1 + colW/2, y1 + P2.IMG/2); g.textAlign = 'left'; g.fillStyle = '#111111'; }
     g.strokeRect(x1, y1, colW, P2.IMG);
     g.strokeRect(x1, y1 + P2.IMG, colW, P2.CAP);
     // 번호 + 간략 내용 (한 줄, 넘치면 …)
-    g.font = `700 9pt ${A4FONT}`;
+    g.font = `700 9px ${A4FONT}`;
     const no = String(i + 1), noW = g.measureText(no).width + 6;
     g.fillStyle = '#F2F2F2'; g.fillRect(x1 + 0.4, y1 + P2.IMG + 0.4, noW + 8, P2.CAP - 0.8); g.fillStyle = '#111111';
     g.fillText(no, x1 + 7, y1 + P2.IMG + P2.CAP/2 + 9*0.36);
-    g.font = `400 9.5pt ${A4FONT}`;
+    g.font = `400 9.5px ${A4FONT}`;
     let t = String(p.caption || ''), w = colW - noW - 8 - 12;
     if (g.measureText(t).width > w){ while (t && g.measureText(t + '…').width > w) t = t.slice(0, -1); t += '…'; }
     g.fillText(t, x1 + noW + 8 + 6, y1 + P2.IMG + P2.CAP/2 + 9.5*0.36);
   }
-  g.font = `400 8.5pt ${A4FONT}`; g.fillStyle = '#666'; g.textAlign = 'center';
+  g.font = `400 8.5px ${A4FONT}`; g.fillStyle = '#666'; g.textAlign = 'center';
   g.fillText('2 / 2', PT.W/2, PT.H - PT.PADY + 14); g.textAlign = 'left'; g.fillStyle = '#111111';
   return cv;
 }
